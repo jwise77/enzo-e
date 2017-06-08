@@ -48,7 +48,7 @@ if charm_path is None:
 		else:
 			raise Exception('Charm++ was not found.  Try setting the CHARM_HOME environment variable.')
 
-use_papi=1                
+use_papi=0
 papi_path    = '/usr/local'
 
 hdf5_inc = os.getenv('HDF5_INC')

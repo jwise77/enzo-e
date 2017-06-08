@@ -83,7 +83,8 @@ EnzoConfig::EnzoConfig() throw ()
   // EnzoMethodPmUpdate
   method_pm_update_max_dt(0.0),
   // EnzoMethodStarMakerCenOstriker
-  star_maker_co_density_threshold(100.)
+  star_maker_co_density_threshold(100.),
+  star_maker_co_efficiency(0.10)
 {
   for (int i=0; i<3; i++) {
     initial_sedov_array[i] = 0;
@@ -211,6 +212,7 @@ void EnzoConfig::pup (PUP::er &p)
 #endif /* CONFIG_USE_GRACKLE */
 
   p | star_maker_co_density_threshold;
+  p | star_maker_co_efficiency;
 }
 
 //----------------------------------------------------------------------
@@ -587,7 +589,9 @@ void EnzoConfig::read(Parameters * p) throw()
 #endif /* CONFIG_USE_GRACKLE */
 
   star_maker_co_density_threshold = p->value_float
-    ("Method:star_maker_cen_ostriker:density_threshold", floor_default);
+    ("Method:star_maker_co:density_threshold", 100.0);
+  star_maker_co_efficiency = p->value_float
+    ("Method:star_maker_co:efficiency", 0.10);
 
 
   TRACE("END   EnzoConfig::read()");

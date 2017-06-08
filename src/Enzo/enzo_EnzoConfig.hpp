@@ -112,7 +112,8 @@ public: // interface
       solver_precondition(),
       solver_local(),
       // EnzoMethodStarMakerCenOstriker
-      star_maker_co_density_threshold()
+      star_maker_co_density_threshold(),
+      star_maker_co_efficiency()
       
   {
     for (int axis=0; axis<3; axis++) {
@@ -265,6 +266,7 @@ public: // attributes
 
   // EnzoMethodStarMakerCenOstriker
   double star_maker_co_density_threshold;
+  double star_maker_co_efficiency;
 
 };
 

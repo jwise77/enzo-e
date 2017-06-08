@@ -46,6 +46,7 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
   const EnzoConfig * enzo_config = static_cast<const EnzoConfig*>
     (enzo_block->simulation()->config());
 
+  int star_counter = 0;
   // Are we at the highest level?
   if (block->is_leaf()) {
 
@@ -67,6 +68,10 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
     const int ia_x = particle.attribute_index (it,"x");
     const int ia_y = particle.attribute_index (it,"y");
     const int ia_z = particle.attribute_index (it,"z");
+    const int ia_vx = particle.attribute_index (it,"vx");
+    const int ia_vy = particle.attribute_index (it,"vy");
+    const int ia_vz = particle.attribute_index (it,"vz");
+
 
     int ib=0;  // batch counter
     int ipp=0;
@@ -75,6 +80,9 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
     double * px = 0;
     double * py = 0;
     double * pz = 0;
+    double * vx = 0;
+    double * vy = 0;
+    double * vz = 0;
 
     const int ps  = particle.stride(it,ia_m);
 
@@ -97,8 +105,6 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
     int nx,ny,nz;
     field.size (&nx,&ny,&nz);
 
-    double star_fraction = 0.1;
-
     for (int iz=gz; iz<nz+gz; iz++) {
       for (int iy=gy; iy<ny+gy; iy++) {
         for (int ix=gx; ix<nx+gx; ix++) {
@@ -106,18 +112,36 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
           int i = ix + mx*(iy + my*iz);
 
           if (density[i] >= enzo_config->star_maker_co_density_threshold) {
-            int my_particle = particle.insert_particles (it,1);
-            particle.index(my_particle, &ib, &ipp);
-            mass = (double *) particle.attribute_array(it,ia_m,ib);
-            mass[ipp*ps] = density[i] * dx*dy*dz * star_fraction;
-            density[i] *= (1 - star_fraction);
 
+            // insert a new particle and grab the particle index
+            int my_particle = particle.insert_particles (it,1);
+
+            // find the block index (ib) and position in block (ipp)
+            particle.index(my_particle, &ib, &ipp);
+
+            // pointer to mass array in block
+            mass = (double *) particle.attribute_array(it,ia_m,ib);
+
+            // update particle mass
+            mass[ipp*ps] = density[i] * dx*dy*dz * enzo_config->star_maker_co_efficiency;
+            density[i] *= (1 - enzo_config->star_maker_co_efficiency);
+
+            // repeat for particle positions and velocities
             px = (double *) particle.attribute_array(it, ia_x, ib);
             py = (double *) particle.attribute_array(it, ia_y, ib);
             pz = (double *) particle.attribute_array(it, ia_z, ib);
             px[ipp*ps] = lx + (ix + 0.5) * dx;
             py[ipp*ps] = ly + (iy + 0.5) * dy;
             pz[ipp*ps] = lz + (iz + 0.5) * dz;
+
+            vx = (double *) particle.attribute_array(it, ia_vx, ib);
+            vy = (double *) particle.attribute_array(it, ia_vy, ib);
+            vz = (double *) particle.attribute_array(it, ia_vz, ib);
+            vx[ipp*ps] =  0.1 ; //velocity_x[i] ;
+            vy[ipp*ps] =  0.1; //velocity_y[i] ;
+            if (rank >=3){ vz[ipp*ps] = velocity_z[i] ; }
+
+            star_counter++;
           }
 
         }
@@ -129,7 +153,6 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
   }
 
   block->compute_done(); 
-  
 }
 
 //----------------------------------------------------------------------
