@@ -110,7 +110,9 @@ public: // interface
       solver_weight(),
       // EnzoSolver<Krylov>
       solver_precondition(),
-      solver_local()
+      solver_local(),
+      // EnzoMethodStarMakerCenOstriker
+      star_maker_co_density_threshold()
       
   {
     for (int axis=0; axis<3; axis++) {
@@ -260,6 +262,9 @@ public: // attributes
   chemistry_data  method_grackle_chemistry;
 
 #endif /* CONFIG_USE_GRACKLE */
+
+  // EnzoMethodStarMakerCenOstriker
+  double star_maker_co_density_threshold;
 
 };
 
