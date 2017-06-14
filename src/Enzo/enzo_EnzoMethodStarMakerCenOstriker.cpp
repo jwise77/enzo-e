@@ -137,9 +137,9 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
             vx = (double *) particle.attribute_array(it, ia_vx, ib);
             vy = (double *) particle.attribute_array(it, ia_vy, ib);
             vz = (double *) particle.attribute_array(it, ia_vz, ib);
-            vx[ipp*ps] =  0.1 ; //velocity_x[i] ;
-            vy[ipp*ps] =  0.1; //velocity_y[i] ;
-            if (rank >=3){ vz[ipp*ps] = velocity_z[i] ; }
+            vx[ipp*ps] =  100.0 ; //velocity_x[i] ;
+            vy[ipp*ps] =  100.0 ; //velocity_y[i] ;
+            vz[ipp*ps] = velocity_z[i] ;
 
             star_counter++;
           }
