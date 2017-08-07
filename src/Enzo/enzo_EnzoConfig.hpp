@@ -132,6 +132,9 @@ public: // interface
       solver_local(),
       // EnzoStopping
       stopping_redshift()
+      // EnzoMethodStarMakerCenOstriker
+      star_maker_co_density_threshold(),
+      star_maker_co_efficiency()
       
   {
     for (int axis=0; axis<3; axis++) {
@@ -308,6 +311,10 @@ public: // attributes
   chemistry_data  method_grackle_chemistry;
 
 #endif /* CONFIG_USE_GRACKLE */
+
+  // EnzoMethodStarMakerCenOstriker
+  double star_maker_co_density_threshold;
+  double star_maker_co_efficiency;
 
 };
 

@@ -80,6 +80,7 @@ module enzo {
   PUPable EnzoMethodTurbulence;
   PUPable EnzoMethodGravity;
   PUPable EnzoMethodComovingExpansion;
+  PUPable EnzoMethodStarMakerCenOstriker;
 
   PUPable EnzoPhysicsCosmology;
 

@@ -48,7 +48,7 @@ if charm_path is None:
 		else:
 			raise Exception('Charm++ was not found.  Try setting the CHARM_HOME environment variable.')
 
-use_papi=1                
+use_papi=0
 papi_inc = '/usr/local/include'
 papi_lib = '/usr/local/lib'
 
