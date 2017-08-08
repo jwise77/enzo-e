@@ -81,6 +81,7 @@ module enzo {
   PUPable EnzoMethodGravity;
   PUPable EnzoMethodComovingExpansion;
   PUPable EnzoMethodStarMakerCenOstriker;
+  PUPable EnzoMethodRayTracer;
 
   PUPable EnzoPhysicsCosmology;
 

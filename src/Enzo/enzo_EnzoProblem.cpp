@@ -375,6 +375,9 @@ Method * EnzoProblem::create_method_
 #endif /* CONFIG_USE_GRACKLE */
   } else if (name == "star_maker_co") {
     method = new EnzoMethodStarMakerCenOstriker(field_descr, enzo_config);
+  } else if (name == "ray_tracer") {
+    method = new EnzoMethodRayTracer(field_descr, enzo_config);
+  }
   } else if (name == "turbulence") {
     method = new EnzoMethodTurbulence 
       (field_descr,

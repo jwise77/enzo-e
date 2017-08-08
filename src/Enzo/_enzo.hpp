@@ -182,6 +182,7 @@ struct fluxes
 #include "enzo_EnzoMethodPpml.hpp"
 #include "enzo_EnzoMethodTurbulence.hpp"
 #include "enzo_EnzoMethodStarMakerCenOstriker.hpp"
+#include "enzo_EnzoMethodRayTracer.hpp"
 
 #include "enzo_EnzoMatrixDiagonal.hpp"
 #include "enzo_EnzoMatrixIdentity.hpp"
