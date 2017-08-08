@@ -61,9 +61,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   block->upper(&ux, &uy, &uz);
 
   int mx, my, mz;
-  int nx, ny, nz;
+  int Nx, Ny, Nz;
   int gx, gy, gz;
-  field.size(&nx, &ny, &nz);
+  field.size(&Nx, &Ny, &Nz);
   field.dimensions(0, &mx, &my, &mz);
   field.ghost_depth(0, &gx, &gy, &gz);
 
@@ -98,8 +98,11 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   for (int ib = 0; ib < nb; ib++) {
     double *x = 0, *y = 0, *z = 0;
     double *nx = 0, *ny = 0, *nz = 0;
+    double *sx = 0, *sy = 0, *sz = 0;
     double *flux = 0, *radius = 0, *time = 0;
 
+    const int np = particle.num_particles(it,ib);
+    
     if (rank >= 1) {
       x  = (double *) particle.attribute_array(it, ia_x, ib);
       nx = (double *) particle.attribute_array(it, ia_nx, ib);
@@ -119,7 +122,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
     flux = (double *) particle.attribute_array(it, ia_f, ib);
     radius = (double *) particle.attribute_array(it, ia_time, ib);
     time = (double *) particle.attribute_array(it, ia_r, ib);
-    
+
     if (rank == 1) {
       for (int ip = 0; ip < np; ip++) {
 
@@ -140,8 +143,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  ix += (n_sign-1)/2;
 
 	int keep_walking = 1;
-	int ic;
-	double oldr, thisr, min_dr, ce, nce, dr, ddr, dt;
+	double oldr, thisr, min_r, ce, nce, dr, ddr, dt;
 	while (keep_walking) {
 	  
 	  // This and the next cell edge
@@ -155,7 +157,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  dr = thisr - oldr;
 
 	  // Do not transport longer than the timestep
-	  ddr = min(dr, c*(EndTime - time[ipps]));
+	  ddr = MIN(dr, c*(EndTime - time[ipps]));
 	  dt = ddr * c_inv;
 
 	  // Update quantities
@@ -168,7 +170,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  ix += n_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix > nx)
+	  if (ix < gx || ix > Nx)
 	    keep_walking = 0;
 
 	  // tiny number for now. Change to physically motivated one later.
@@ -209,18 +211,19 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	// Inverse normals (for determining directions)
 	if (fabs(nx[ipps]) < ETA_TOLERANCE) nx[ipps] = nx_sign * ETA_TOLERANCE;
 	if (fabs(ny[ipps]) < ETA_TOLERANCE) ny[ipps] = ny_sign * ETA_TOLERANCE;
-	nx_inv = 1.0 / nx[ipps];
-	ny_inv = 1.0 / ny[ipps];
+	double nx_inv = 1.0 / nx[ipps];
+	double ny_inv = 1.0 / ny[ipps];
 	
-	int keep_walking = 1;
-	int ic, move_dir;
+	int i, direction, keep_walking = 1;
+	double cex, cey, ncex, ncey, drx, dry;
+	double oldr, thisr, min_r, dr, ddr, dt;
 	while (keep_walking) {
 	  
 	  // This and the next cell edge
-	  double cex = lx + ix*dx;
-	  double cey = ly + iy*dy;
-	  double ncex = lx + (ix+nx_dir)*dx;
-	  double ncey = ly + (iy+ny_dir)*dy;
+	  cex = lx + ix*dx;
+	  cey = ly + iy*dy;
+	  ncex = lx + (ix+nx_dir)*dx;
+	  ncey = ly + (iy+ny_dir)*dy;
 
 	  // Radius of the next cell edge crossing in each dimension
 	  drx = nx_inv * (ncex - sx[ipps]);
@@ -236,21 +239,21 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  }
 	  
 	  // Radius at the next tranversal
-	  double oldr = radius[ipps];
+	  oldr = radius[ipps];
 	  // avoid being on the edge
-	  double thisr = min_r + ETA_TOLERANCE;
-	  double dr = thisr - oldr;
+	  thisr = min_r + ETA_TOLERANCE;
+	  dr = thisr - oldr;
 
 	  // Do not transport longer than the timestep
-	  double ddr = min(dr, c*(EndTime - time[ipps]));
-	  double dt = ddr * c_inv;
+	  ddr = MIN(dr, c*(EndTime - time[ipps]));
+	  dt = ddr * c_inv;
 
 	  // Update quantities
 	  time[ipps] += dt;
 	  flux[ipps] += 0.0;  // attenuate
 	  radius[ipps] += ddr;
 
-	  int i = gx+ix + mx*(gy+iy);
+	  i = gx+ix + mx*(gy+iy);
 	  ray_count[i] += 1.0;
 	  x[ipps] += nx[ipps] * ddr;
 	  y[ipps] += ny[ipps] * ddr;
@@ -261,7 +264,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	    iy += ny_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix > nx || iy < gy || iy > ny)
+	  if (ix < gx || ix > Nx || iy < gy || iy > Ny)
 	    keep_walking = 0;
 
 	  // tiny number for now. Change to physically motivated one later.
@@ -308,21 +311,22 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	if (fabs(nx[ipps]) < ETA_TOLERANCE) nx[ipps] = nx_sign * ETA_TOLERANCE;
 	if (fabs(ny[ipps]) < ETA_TOLERANCE) ny[ipps] = ny_sign * ETA_TOLERANCE;
 	if (fabs(nz[ipps]) < ETA_TOLERANCE) nz[ipps] = nz_sign * ETA_TOLERANCE;
-	nx_inv = 1.0 / nx[ipps];
-	ny_inv = 1.0 / ny[ipps];
-	nz_inv = 1.0 / nz[ipps];
+	double nx_inv = 1.0 / nx[ipps];
+	double ny_inv = 1.0 / ny[ipps];
+	double nz_inv = 1.0 / nz[ipps];
 	
-	int keep_walking = 1;
-	int ic, move_dir;
+	int i, direction, keep_walking = 1;
+	double cex, cey, cez, ncex, ncey, ncez, drx, dry, drz;
+	double oldr, thisr, min_r, dr, ddr, dt;
 	while (keep_walking) {
 	  
 	  // This and the next cell edge
-	  double cex = lx + ix*dx;
-	  double cey = ly + iy*dy;
-	  double cez = lz + iz*dz;
-	  double ncex = lx + (ix+nx_dir)*dx;
-	  double ncey = ly + (iy+ny_dir)*dy;
-	  double ncez = lz + (iz+nz_dir)*dz;
+	  cex = lx + ix*dx;
+	  cey = ly + iy*dy;
+	  cez = lz + iz*dz;
+	  ncex = lx + (ix+nx_dir)*dx;
+	  ncey = ly + (iy+ny_dir)*dy;
+	  ncez = lz + (iz+nz_dir)*dz;
 
 	  // Radius of the next cell edge crossing in each dimension
 	  drx = nx_inv * (ncex - sx[ipps]);
@@ -342,21 +346,21 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  }
 	  
 	  // Radius at the next tranversal
-	  double oldr = radius[ipps];
+	  oldr = radius[ipps];
 	  // avoid being on the edge
-	  double thisr = min_r + ETA_TOLERANCE;
-	  double dr = thisr - oldr;
+	  thisr = min_r + ETA_TOLERANCE;
+	  dr = thisr - oldr;
 
 	  // Do not transport longer than the timestep
-	  double ddr = min(dr, c*(EndTime - time[ipps]));
-	  double dt = ddr * c_inv;
+	  ddr = MIN(dr, c*(EndTime - time[ipps]));
+	  dt = ddr * c_inv;
 
 	  // Update quantities
 	  time[ipps] += dt;
 	  flux[ipps] += 0.0;  // attenuate
 	  radius[ipps] += ddr;
 
-	  int i = gx+ix + mx*(gy+iy + my*(gz+iz));
+	  i = gx+ix + mx*(gy+iy + my*(gz+iz));
 	  ray_count[i] += 1.0;
 	  x[ipps] += nx[ipps] * ddr;
 	  y[ipps] += ny[ipps] * ddr;
@@ -370,9 +374,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	    iz += nz_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix > nx ||
-	      iy < gy || iy > ny ||
-	      iz < gz || iz > nz)
+	  if (ix < gx || ix > Nx ||
+	      iy < gy || iy > Ny ||
+	      iz < gz || iz > Nz)
 	    keep_walking = 0;
 
 	  // tiny number for now. Change to physically motivated one later.

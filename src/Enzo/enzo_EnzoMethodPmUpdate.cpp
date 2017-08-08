@@ -61,7 +61,6 @@ void EnzoMethodPmUpdate::compute ( Block * block) throw()
 
     FieldDescr    * fd = block->data()->field_descr();
     ParticleDescr * pd = block->data()->particle_descr();
-
     Particle particle = block->data()->particle();
 
     int n_mass_type = particle.groups()->size("has_mass");
@@ -80,8 +79,6 @@ void EnzoMethodPmUpdate::compute ( Block * block) throw()
       EnzoComputeCicInterp interp_z (fd, "acceleration_z", pd, "dark", "az");
       interp_z.compute(block);
     }
-
-    Particle particle = block->data()->particle();
 
     const int it = particle.type_index ("dark");
 

@@ -101,7 +101,9 @@ EnzoConfig::EnzoConfig() throw ()
   method_pm_update_max_dt(0.0),
   // EnzoMethodStarMakerCenOstriker
   star_maker_co_density_threshold(100.),
-  star_maker_co_efficiency(0.10)
+  star_maker_co_efficiency(0.10),
+  // EnzoMethodRayTracer
+  rays_per_cell(5.1)
 {
   for (int i=0; i<3; i++) {
     initial_sedov_array[i] = 0;
