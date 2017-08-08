@@ -1,0 +1,145 @@
+    ### Problem : Ray tracing Test
+    ### Summary : Very basic test for the ray tracing machinery.
+    ###           Sets up a uniform density box with one block and one ray.
+    ###    Date : 2017-08-08
+    ###  Author : John H. Wise (jwise@gatech.edu)
+
+
+    Domain {
+       lower = [0.0, 0.0, 0.0];
+       upper = [1.0, 1.0, 1.0];
+    }
+
+    Mesh {
+       root_rank   = 3; 
+       root_size   = [32, 32, 32];
+       root_blocks = [  1, 1,  1];
+    }
+
+    Adapt {
+       max_level = 0;
+    }
+
+    Field {
+
+        ghost_depth =   3; # check to see if this is needed
+        gamma       = 1.66667;
+
+        list = [
+          "density", "ray_count"
+        ] ;
+
+    }
+
+
+    Particle {
+
+        list = ["rays"]; # add particle type stars
+
+        rays {
+
+            # define attributes of this particle
+            # and set variable type
+            attributes = ["ray_x", "double",
+                          "ray_y", "double",
+                          "ray_z", "double",
+                          "normal_x", "double",
+                          "normal_y", "double",
+                          "normal_z", "double",
+                          "source_x", "double",
+                          "source_y", "double",
+                          "source_z", "double",
+                          "radius", "double",
+                          "time", "double",
+                          "flux", "double"];
+
+           position = ["ray_x","ray_y","ray_z"];
+       }
+
+   }
+
+   Method {
+
+      list = ["ray_tracer"];
+
+      ray_tracer {
+          rays_per_cell = 5.1;
+      }
+   }
+
+
+   Initial {
+
+       list = ["value"];
+
+       density { value = 1.0; };
+       ray_count { value = 0.0; };
+       ray_x { value = [0.01]; };
+       ray_y { value = [0.49]; };
+       ray_z { value = [0.49]; };
+       normal_x { value = [1.0]; };
+       normal_y { value = [0.0]; };
+       normal_z { value = [0.0]; };
+       source_x { value = [0.01]; };
+       source_y { value = [0.49]; };
+       source_z { value = [0.49]; };
+       time { value = [0.0]; };
+       flux { value = [1.0]; };
+       radius { value = [0.0]; };
+   }
+
+   Boundary { type = "periodic";}
+
+   Stopping {
+       cycle = 2;
+   }
+
+
+   Output {
+
+      list = ["density","ray_count","mesh"];
+
+      density {
+
+         name       = ["ray-trace-de-%04d.png","cycle"];
+         type       = "image";
+         field_list = ["density"];
+
+         image_type = "data";
+         image_size = [640,640];
+
+         include "input/schedule_cycle_1.incl"
+
+         include "input/colormap_rainbow.incl"
+
+      }
+
+      ray_count {
+
+         name       = ["ray-trace-count-%04d.png","cycle"];
+         type       = "image";
+         field_list = ["ray_count"];
+
+         image_type = "data";
+	 image_reduce_type = "sum";
+         image_size = [640,640];
+
+         include "input/schedule_cycle_1.incl"
+
+         include "input/colormap_rainbow.incl"
+
+      }
+
+      mesh {
+	type     = "image";
+	image_type  = "mesh";
+	image_reduce_type = "max";
+#	image_block_size  = 5;
+	image_size = [640,640];
+        include "input/schedule_cycle_1.incl"
+	image_min = 0.0;
+	image_max = 4.0;
+        include "input/colormap_rainbow.incl"
+      }
+
+  }

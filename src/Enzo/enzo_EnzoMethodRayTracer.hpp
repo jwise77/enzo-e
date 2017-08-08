@@ -34,6 +34,8 @@ public: // interface
   /// Apply the method to advance a block one timestep 
   virtual void compute( Block * block) throw();
 
+  virtual double timestep( Block * block) const throw();
+
   virtual std::string name () throw () 
   { return "ray_tracer"; }
 

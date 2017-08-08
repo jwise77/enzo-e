@@ -8,6 +8,16 @@
 #include "cello.hpp"
 #include "enzo.hpp"
 
+#define DEBUG_RAYS
+
+#ifdef DEBUG_RAYS
+#  define TRACE_RT(MESSAGE)						\
+  CkPrintf ("%s:%d %s\n",						\
+	    __FILE__,__LINE__,MESSAGE);				
+#else
+#  define TRACE_RT(MESSAGE) /* ... */
+#endif
+
 //----------------------------------------------------------------------
 
 EnzoMethodRayTracer::EnzoMethodRayTracer 
@@ -41,6 +51,8 @@ void EnzoMethodRayTracer::pup (PUP::er &p)
 
 void EnzoMethodRayTracer::compute ( Block * block) throw()
 {
+
+  TRACE_RT("compute()");
 
   EnzoBlock * enzo_block = static_cast<EnzoBlock*> (block);
 
@@ -77,9 +89,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 
   // Obtain ray attributes
   const int it = particle.type_index("rays");
-  const int ia_x = (rank >= 1) ? particle.attribute_index(it, "x") : -1;
-  const int ia_y = (rank >= 2) ? particle.attribute_index(it, "y") : -1;
-  const int ia_z = (rank >= 3) ? particle.attribute_index(it, "z") : -1;
+  const int ia_x = (rank >= 1) ? particle.attribute_index(it, "ray_x") : -1;
+  const int ia_y = (rank >= 2) ? particle.attribute_index(it, "ray_y") : -1;
+  const int ia_z = (rank >= 3) ? particle.attribute_index(it, "ray_z") : -1;
   const int ia_nx = (rank >= 1) ? particle.attribute_index(it, "normal_x") : -1;
   const int ia_ny = (rank >= 2) ? particle.attribute_index(it, "normal_y") : -1;
   const int ia_nz = (rank >= 3) ? particle.attribute_index(it, "normal_z") : -1;
@@ -131,7 +143,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	// Ray can only go left or right, so we take the sign of the
 	// supplied normal
 	int ipps = ip*ps;
-	int n_sign = sign(nx[ipps]);
+	int n_sign = SIGN(nx[ipps]);
 	int n_dir = (n_sign+1)/2;
 
 	// Current cell in integer units
@@ -193,8 +205,8 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	// Ray can only go left or right, so we take the sign of the
 	// supplied normal
 	int ipps = ip*ps;
-	int nx_sign = sign(nx[ipps]);
-	int ny_sign = sign(ny[ipps]);
+	int nx_sign = SIGN(nx[ipps]);
+	int ny_sign = SIGN(ny[ipps]);
 	int nx_dir = (nx_sign+1)/2;
 	int ny_dir = (ny_sign+1)/2;
 
@@ -287,9 +299,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	// Ray can only go left or right, so we take the sign of the
 	// supplied normal
 	int ipps = ip*ps;
-	int nx_sign = sign(nx[ipps]);
-	int ny_sign = sign(ny[ipps]);
-	int nz_sign = sign(nz[ipps]);
+	int nx_sign = SIGN(nx[ipps]);
+	int ny_sign = SIGN(ny[ipps]);
+	int nz_sign = SIGN(nz[ipps]);
 	int nx_dir = (nx_sign+1)/2;
 	int ny_dir = (ny_sign+1)/2;
 	int nz_dir = (nz_sign+1)/2;
@@ -397,3 +409,13 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 }
 
 //----------------------------------------------------------------------
+
+double EnzoMethodRayTracer::timestep ( Block * block ) const throw()
+{
+
+  TRACE_RT("timestep()");
+
+  const double dt = 0.1;
+  return dt;
+  
+}

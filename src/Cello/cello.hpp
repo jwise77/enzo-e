@@ -49,6 +49,9 @@ template <class T>
 inline T MAX(const T &a, const T &b) 
 {  return a > b ? a : b; }
 
+template <typename T>
+inline int SIGN(T val) { return (T(0) < val) - (val < T(0)); }
+
 inline int INDEX(int ix,int iy,int iz,int nx,int ny) 
 {  return ix+nx*(iy+ny*iz); }
 
