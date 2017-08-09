@@ -1,9 +1,9 @@
 // See LICENSE_CELLO file for license and copyright information
 
-/// @file     enzo_EnzoMethodPpm.cpp
-/// @author   James Bordner (jobordner@ucsd.edu)
-/// @date     Fri Apr  2 17:05:23 PDT 2010
-/// @brief    Implements the EnzoMethodPpm class
+/// @file     enzo_EnzoMethodRayTracer.cpp
+/// @author   John H. Wise (jwise2gatech.edu)
+/// @date     2017-08-07
+/// @brief    Implements the EnzoMethodRayTracer class
 
 #include "cello.hpp"
 #include "enzo.hpp"
@@ -23,6 +23,7 @@
 EnzoMethodRayTracer::EnzoMethodRayTracer 
 (
  const FieldDescr * field_descr,
+ const ParticleDescr * particle_descr, 
  EnzoConfig * enzo_config
 ) 
   : Method()
@@ -30,9 +31,11 @@ EnzoMethodRayTracer::EnzoMethodRayTracer
   // Initialize default Refresh object
 
   const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier);
+  refresh(ir)->add_all_particles(particle_descr->num_types());
   refresh(ir)->add_all_fields(field_descr->field_count());
 
-  // PPM parameters initialized in EnzoBlock::initialize()
+  // Parameters initialized in EnzoBlock::initialize()
+  
 }
 
 //----------------------------------------------------------------------
@@ -119,8 +122,8 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   double unit[3] = {0.5, 0.866, 0.0};
 
   if (start[0] >= lx && start[0] <= ux &&
-      start[0] >= lx && start[0] <= ux &&
-      start[0] >= lx && start[0] <= ux) {
+      start[0] >= ly && start[0] <= uy &&
+      start[0] >= lz && start[0] <= uz) {
 
     int part0 = particle.insert_particles(it,1);
     particle.index(part0, &ib0, &ipp0);
@@ -149,6 +152,8 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
     flux[ipp0*ps] = 1.0;
     time[ipp0*ps] = enzo_block->time();
     radius[ipp0*ps] = 0.0;
+
+    printf("[0] Created a ray. ib0=%d, ipp0=%d, r0=%g\n", ib0, ipp0, radius[ipp0*ps]);
     
   }
   
@@ -181,8 +186,8 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
     }
 
     flux = (double *) particle.attribute_array(it, ia_f, ib);
-    radius = (double *) particle.attribute_array(it, ia_time, ib);
-    time = (double *) particle.attribute_array(it, ia_r, ib);
+    radius = (double *) particle.attribute_array(it, ia_r, ib);
+    time = (double *) particle.attribute_array(it, ia_time, ib);
 
     if (rank == 1) {
       for (int ip = 0; ip < np; ip++) {
@@ -382,11 +387,11 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	printf("[a] %d %d %d %d %d %d\n", nx_sign, nx_dir, ny_sign, ny_dir,
 	       nz_sign, nz_dir);
 	printf("[b] %d %d %d %g %g %g\n", ix, iy, iz, fx, fy, fz);
-	printf("[c] %g %g %g\n", nx_inv, ny_inv, nz_inv);
+	printf("[c] %d %d // %g %g %g\n", ib, ip, nx_inv, ny_inv, nz_inv);
 
 	int i, direction, keep_walking = 1;
 	double cex, cey, cez, ncex, ncey, ncez, drx, dry, drz;
-	double oldr, thisr, min_r, dr, ddr, dt;
+	double oldr, min_r, dr, ddr, dt;
 	while (keep_walking) {
 	  
 	  // This and the next cell edge
@@ -416,9 +421,10 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  
 	  // Radius at the next tranversal
 	  oldr = radius[ipps];
+	  //thisr = min_r;
+	  dr = min_r - oldr;
 	  // avoid being on the edge
-	  thisr = min_r + ETA_TOLERANCE;
-	  dr = thisr - oldr;
+	  dr += OMEGA_TOLERANCE*dx;
 
 	  // Do not transport longer than the timestep
 	  ddr = MIN(dr, c*(EndTime - time[ipps]));
@@ -437,8 +443,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 
 	  printf("[A] %g %g %g // %g %g %g\n", cex, cey, cez, ncex, ncey, ncez);
 	  printf("[B] %g %g %g // %g %d\n", drx, dry, drz, min_r, direction);
-	  printf("[C] %d %g :: %g %g %g %g %g\n", i, ray_count[i], oldr, thisr,
+	  printf("[C] %d %g :: %g %g %g %g\n", i, ray_count[i], oldr,
 		 dr, ddr, dt);
+	  printf("[D] %g %g %g\n", x[ipps], y[ipps], z[ipps]);
 	  
 
 	  if (direction == 0)
@@ -449,9 +456,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	    iz += nz_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < 0 || ix > Nx ||
-	      iy < 0 || iy > Ny ||
-	      iz < 0 || iz > Nz) {
+	  if (ix < 0 || ix >= Nx ||
+	      iy < 0 || iy >= Ny ||
+	      iz < 0 || iz >= Nz) {
 	    keep_walking = 0;
 	    printf("Exited grid\n");
 	  }
