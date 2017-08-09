@@ -65,6 +65,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   //enzo_float *density = (enzo_float *) field.values("density");
   enzo_float *ray_count = (enzo_float *) field.values("ray_count");
 
+  TRACE_RT("compute1()");
   double dx, dy, dz;
   double lx, ly, lz;
   double ux, uy, uz;
@@ -87,11 +88,13 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   
   const int rank = enzo_block->rank();
 
+  TRACE_RT("compute2()");
+
   // Obtain ray attributes
   const int it = particle.type_index("rays");
-  const int ia_x = (rank >= 1) ? particle.attribute_index(it, "ray_x") : -1;
-  const int ia_y = (rank >= 2) ? particle.attribute_index(it, "ray_y") : -1;
-  const int ia_z = (rank >= 3) ? particle.attribute_index(it, "ray_z") : -1;
+  const int ia_x = (rank >= 1) ? particle.attribute_index(it, "x") : -1;
+  const int ia_y = (rank >= 2) ? particle.attribute_index(it, "y") : -1;
+  const int ia_z = (rank >= 3) ? particle.attribute_index(it, "z") : -1;
   const int ia_nx = (rank >= 1) ? particle.attribute_index(it, "normal_x") : -1;
   const int ia_ny = (rank >= 2) ? particle.attribute_index(it, "normal_y") : -1;
   const int ia_nz = (rank >= 3) ? particle.attribute_index(it, "normal_z") : -1;
@@ -101,19 +104,65 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   const int ia_f = particle.attribute_index(it, "flux");
   const int ia_r = particle.attribute_index(it, "radius");
   const int ia_time = particle.attribute_index(it, "time");
-  const int nb = particle.num_batches(it);
-  
+
   // Obtain particle strides
   const int ps = particle.stride(it, ia_x);
 
+  double *x = 0, *y = 0, *z = 0;
+  double *nx = 0, *ny = 0, *nz = 0;
+  double *sx = 0, *sy = 0, *sz = 0;
+  double *flux = 0, *radius = 0, *time = 0;
+  
+  // Simple test (TO BE REMOVED): Create one ray every timestep
+  int ib0, ipp0;
+  double start[3] = {0.01, 0.01, 0.01};
+  double unit[3] = {0.5, 0.866, 0.0};
+
+  if (start[0] >= lx && start[0] <= ux &&
+      start[0] >= lx && start[0] <= ux &&
+      start[0] >= lx && start[0] <= ux) {
+
+    int part0 = particle.insert_particles(it,1);
+    particle.index(part0, &ib0, &ipp0);
+    x = (double *) particle.attribute_array(it, ia_x, ib0);
+    y = (double *) particle.attribute_array(it, ia_y, ib0);
+    z = (double *) particle.attribute_array(it, ia_z, ib0);
+    nx = (double *) particle.attribute_array(it, ia_nx, ib0);
+    ny = (double *) particle.attribute_array(it, ia_ny, ib0);
+    nz = (double *) particle.attribute_array(it, ia_nz, ib0);
+    sx = (double *) particle.attribute_array(it, ia_sx, ib0);
+    sy = (double *) particle.attribute_array(it, ia_sy, ib0);
+    sz = (double *) particle.attribute_array(it, ia_sz, ib0);
+    flux = (double *) particle.attribute_array(it, ia_f, ib0);
+    time = (double *) particle.attribute_array(it, ia_time, ib0);
+    radius = (double *) particle.attribute_array(it, ia_r, ib0);
+
+    x[ipp0*ps] = start[0];
+    y[ipp0*ps] = start[1];
+    z[ipp0*ps] = start[2];
+    nx[ipp0*ps] = unit[0];
+    ny[ipp0*ps] = unit[1];
+    nz[ipp0*ps] = unit[2];
+    sx[ipp0*ps] = start[0];
+    sy[ipp0*ps] = start[1];
+    sz[ipp0*ps] = start[2];
+    flux[ipp0*ps] = 1.0;
+    time[ipp0*ps] = enzo_block->time();
+    radius[ipp0*ps] = 0.0;
+    
+  }
+  
+  const int nb = particle.num_batches(it);
+  printf("[0] le %g %g %g // re = %g %g %g\n", lx, ly, lz, ux, uy, uz);
+  printf("[0] np=%d, nb=%d, ia_f=%d\n", particle.num_particles(it,0), nb, ia_f);
+  
+  TRACE_RT("compute3()");
+  
   // Loop over ray particle batches and then individual rays
   for (int ib = 0; ib < nb; ib++) {
-    double *x = 0, *y = 0, *z = 0;
-    double *nx = 0, *ny = 0, *nz = 0;
-    double *sx = 0, *sy = 0, *sz = 0;
-    double *flux = 0, *radius = 0, *time = 0;
 
     const int np = particle.num_particles(it,ib);
+    TRACE_RT("compute4()");
     
     if (rank >= 1) {
       x  = (double *) particle.attribute_array(it, ia_x, ib);
@@ -302,6 +351,12 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	int nx_sign = SIGN(nx[ipps]);
 	int ny_sign = SIGN(ny[ipps]);
 	int nz_sign = SIGN(nz[ipps]);
+
+	// Avoid zeros in the normal directions and dividing by zero
+	if (nx_sign == 0) { nx[ipps] = ETA_TOLERANCE; nx_sign = 1; }
+	if (ny_sign == 0) { ny[ipps] = ETA_TOLERANCE; ny_sign = 1; }
+	if (nz_sign == 0) { nz[ipps] = ETA_TOLERANCE; nz_sign = 1; }
+
 	int nx_dir = (nx_sign+1)/2;
 	int ny_dir = (ny_sign+1)/2;
 	int nz_dir = (nz_sign+1)/2;
@@ -320,13 +375,15 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	if (z[ipps] == fz) iz += (nz_sign-1)/2;
 
 	// Inverse normals (for determining directions)
-	if (fabs(nx[ipps]) < ETA_TOLERANCE) nx[ipps] = nx_sign * ETA_TOLERANCE;
-	if (fabs(ny[ipps]) < ETA_TOLERANCE) ny[ipps] = ny_sign * ETA_TOLERANCE;
-	if (fabs(nz[ipps]) < ETA_TOLERANCE) nz[ipps] = nz_sign * ETA_TOLERANCE;
 	double nx_inv = 1.0 / nx[ipps];
 	double ny_inv = 1.0 / ny[ipps];
 	double nz_inv = 1.0 / nz[ipps];
-	
+
+	printf("[a] %d %d %d %d %d %d\n", nx_sign, nx_dir, ny_sign, ny_dir,
+	       nz_sign, nz_dir);
+	printf("[b] %d %d %d %g %g %g\n", ix, iy, iz, fx, fy, fz);
+	printf("[c] %g %g %g\n", nx_inv, ny_inv, nz_inv);
+
 	int i, direction, keep_walking = 1;
 	double cex, cey, cez, ncex, ncey, ncez, drx, dry, drz;
 	double oldr, thisr, min_r, dr, ddr, dt;
@@ -371,12 +428,18 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  time[ipps] += dt;
 	  flux[ipps] += 0.0;  // attenuate
 	  radius[ipps] += ddr;
-
+	  
 	  i = gx+ix + mx*(gy+iy + my*(gz+iz));
 	  ray_count[i] += 1.0;
 	  x[ipps] += nx[ipps] * ddr;
 	  y[ipps] += ny[ipps] * ddr;
 	  z[ipps] += nz[ipps] * ddr;
+
+	  printf("[A] %g %g %g // %g %g %g\n", cex, cey, cez, ncex, ncey, ncez);
+	  printf("[B] %g %g %g // %g %d\n", drx, dry, drz, min_r, direction);
+	  printf("[C] %d %g :: %g %g %g %g %g\n", i, ray_count[i], oldr, thisr,
+		 dr, ddr, dt);
+	  
 
 	  if (direction == 0)
 	    ix += nx_dir;
@@ -386,18 +449,21 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	    iz += nz_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix > Nx ||
-	      iy < gy || iy > Ny ||
-	      iz < gz || iz > Nz)
+	  if (ix < 0 || ix > Nx ||
+	      iy < 0 || iy > Ny ||
+	      iz < 0 || iz > Nz) {
 	    keep_walking = 0;
-
+	    printf("Exited grid\n");
+	  }
 	  // tiny number for now. Change to physically motivated one later.
-	  else if (flux[ipps] < 1e-20)
+	  else if (flux[ipps] < 1e-20) {
 	    keep_walking = 0;
-
-	  else if (time[ipps] >= EndTime)
+	    printf("Low flux\n");
+	  }
+	  else if (time[ipps] >= EndTime) {
 	    keep_walking = 0;
-	  
+	    printf("Time's up!\n");
+	  }
 	} // ENDWHILE keep_walking
 	
       }  // ENDFOR rays
