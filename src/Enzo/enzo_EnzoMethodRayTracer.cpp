@@ -62,19 +62,58 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   const EnzoConfig * enzo_config = static_cast<const EnzoConfig*>
     (enzo_block->simulation()->config());
 
-  Particle particle (block->data()->particle());
-  Field    field    (block->data()->field());
+  setup_attributes(enzo_block);
+  generate_rays(enzo_block);
+  trace_rays(enzo_block);
+    
+  block->compute_done(); 
+}
+
+//----------------------------------------------------------------------
+
+void EnzoMethodRayTracer::setup_attributes ( EnzoBlock * enzo_block) throw()
+{
+
+  const int rank = enzo_block->rank();
+
+  // Obtain ray attributes
+  Particle particle (enzo_block->data()->particle());
+  it = particle.type_index("rays");
+  ia_x = (rank >= 1) ? particle.attribute_index(it, "x") : -1;
+  ia_y = (rank >= 2) ? particle.attribute_index(it, "y") : -1;
+  ia_z = (rank >= 3) ? particle.attribute_index(it, "z") : -1;
+  ia_nx = (rank >= 1) ? particle.attribute_index(it, "normal_x") : -1;
+  ia_ny = (rank >= 2) ? particle.attribute_index(it, "normal_y") : -1;
+  ia_nz = (rank >= 3) ? particle.attribute_index(it, "normal_z") : -1;
+  ia_sx = (rank >= 1) ? particle.attribute_index(it, "source_x") : -1;
+  ia_sy = (rank >= 2) ? particle.attribute_index(it, "source_y") : -1;
+  ia_sz = (rank >= 3) ? particle.attribute_index(it, "source_z") : -1;
+  ia_f = particle.attribute_index(it, "flux");
+  ia_r = particle.attribute_index(it, "radius");
+  ia_time = particle.attribute_index(it, "time");
+
+  // Obtain particle strides
+  ps = particle.stride(it, ia_x);
+
+  return;
+  
+}
+
+void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
+{
+
+  Particle particle (enzo_block->data()->particle());
+  Field    field    (enzo_block->data()->field());
   
   //enzo_float *density = (enzo_float *) field.values("density");
   enzo_float *ray_count = (enzo_float *) field.values("ray_count");
 
-  TRACE_RT("compute1()");
   double dx, dy, dz;
   double lx, ly, lz;
   double ux, uy, uz;
-  block->cell_width(&dx, &dy, &dz);
-  block->lower(&lx, &ly, &lz);
-  block->upper(&ux, &uy, &uz);
+  enzo_block->cell_width(&dx, &dy, &dz);
+  enzo_block->lower(&lx, &ly, &lz);
+  enzo_block->upper(&ux, &uy, &uz);
 
   int mx, my, mz;
   int Nx, Ny, Nz;
@@ -90,84 +129,22 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
   const double c_inv = 1.0 / c;
   
   const int rank = enzo_block->rank();
-
-  TRACE_RT("compute2()");
-
-  // Obtain ray attributes
-  const int it = particle.type_index("rays");
-  const int ia_x = (rank >= 1) ? particle.attribute_index(it, "x") : -1;
-  const int ia_y = (rank >= 2) ? particle.attribute_index(it, "y") : -1;
-  const int ia_z = (rank >= 3) ? particle.attribute_index(it, "z") : -1;
-  const int ia_nx = (rank >= 1) ? particle.attribute_index(it, "normal_x") : -1;
-  const int ia_ny = (rank >= 2) ? particle.attribute_index(it, "normal_y") : -1;
-  const int ia_nz = (rank >= 3) ? particle.attribute_index(it, "normal_z") : -1;
-  const int ia_sx = (rank >= 1) ? particle.attribute_index(it, "source_x") : -1;
-  const int ia_sy = (rank >= 2) ? particle.attribute_index(it, "source_y") : -1;
-  const int ia_sz = (rank >= 3) ? particle.attribute_index(it, "source_z") : -1;
-  const int ia_f = particle.attribute_index(it, "flux");
-  const int ia_r = particle.attribute_index(it, "radius");
-  const int ia_time = particle.attribute_index(it, "time");
-
-  // Obtain particle strides
-  const int ps = particle.stride(it, ia_x);
-
   double *x = 0, *y = 0, *z = 0;
   double *nx = 0, *ny = 0, *nz = 0;
   double *sx = 0, *sy = 0, *sz = 0;
   double *flux = 0, *radius = 0, *time = 0;
-  
-  // Simple test (TO BE REMOVED): Create one ray every timestep
-  int ib0, ipp0;
-  double start[3] = {0.01, 0.01, 0.01};
-  double unit[3] = {0.5, 0.866, 0.0};
 
-  if (start[0] >= lx && start[0] <= ux &&
-      start[0] >= ly && start[0] <= uy &&
-      start[0] >= lz && start[0] <= uz) {
-
-    int part0 = particle.insert_particles(it,1);
-    particle.index(part0, &ib0, &ipp0);
-    x = (double *) particle.attribute_array(it, ia_x, ib0);
-    y = (double *) particle.attribute_array(it, ia_y, ib0);
-    z = (double *) particle.attribute_array(it, ia_z, ib0);
-    nx = (double *) particle.attribute_array(it, ia_nx, ib0);
-    ny = (double *) particle.attribute_array(it, ia_ny, ib0);
-    nz = (double *) particle.attribute_array(it, ia_nz, ib0);
-    sx = (double *) particle.attribute_array(it, ia_sx, ib0);
-    sy = (double *) particle.attribute_array(it, ia_sy, ib0);
-    sz = (double *) particle.attribute_array(it, ia_sz, ib0);
-    flux = (double *) particle.attribute_array(it, ia_f, ib0);
-    time = (double *) particle.attribute_array(it, ia_time, ib0);
-    radius = (double *) particle.attribute_array(it, ia_r, ib0);
-
-    x[ipp0*ps] = start[0];
-    y[ipp0*ps] = start[1];
-    z[ipp0*ps] = start[2];
-    nx[ipp0*ps] = unit[0];
-    ny[ipp0*ps] = unit[1];
-    nz[ipp0*ps] = unit[2];
-    sx[ipp0*ps] = start[0];
-    sy[ipp0*ps] = start[1];
-    sz[ipp0*ps] = start[2];
-    flux[ipp0*ps] = 1.0;
-    time[ipp0*ps] = enzo_block->time();
-    radius[ipp0*ps] = 0.0;
-
-    printf("[0] Created a ray. ib0=%d, ipp0=%d, r0=%g\n", ib0, ipp0, radius[ipp0*ps]);
-    
-  }
-  
-  const int nb = particle.num_batches(it);
+    const int nb = particle.num_batches(it);
   printf("[0] le %g %g %g // re = %g %g %g\n", lx, ly, lz, ux, uy, uz);
   printf("[0] np=%d, nb=%d, ia_f=%d\n", particle.num_particles(it,0), nb, ia_f);
   
-  TRACE_RT("compute3()");
+  TRACE_RT("trace_rays()");
   
   // Loop over ray particle batches and then individual rays
   for (int ib = 0; ib < nb; ib++) {
 
     const int np = particle.num_particles(it,ib);
-    TRACE_RT("compute4()");
+    TRACE_RT("trace_rays_loop()");
     
     if (rank >= 1) {
       x  = (double *) particle.attribute_array(it, ia_x, ib);
@@ -481,10 +458,77 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
     } // ENDIF rank == 3
 
   } // ENDFOR blocks
-    
-  block->compute_done(); 
+
+  return;
+
 }
 
+//----------------------------------------------------------------------
+
+void EnzoMethodRayTracer::generate_rays ( EnzoBlock * enzo_block) throw()
+{
+
+  TRACE_RT("generate_rays()");
+  Particle particle (enzo_block->data()->particle());
+  
+  const int rank = enzo_block->rank();
+  double lx, ly, lz;
+  double ux, uy, uz;
+  enzo_block->lower(&lx, &ly, &lz);
+  enzo_block->upper(&ux, &uy, &uz);
+
+  double *x = 0, *y = 0, *z = 0;
+  double *nx = 0, *ny = 0, *nz = 0;
+  double *sx = 0, *sy = 0, *sz = 0;
+  double *flux = 0, *radius = 0, *time = 0;
+  
+  // Simple test (TO BE REMOVED): Create one ray every timestep
+  int ib0, ipp0;
+  double start[3] = {0.01, 0.01, 0.01};
+  double unit[3] = {0.5, 0.866, 0.0};
+
+  if (start[0] >= lx && start[0] <= ux &&
+      start[0] >= ly && start[0] <= uy &&
+      start[0] >= lz && start[0] <= uz) {
+
+    int part0 = particle.insert_particles(it,1);
+    particle.index(part0, &ib0, &ipp0);
+    x = (double *) particle.attribute_array(it, ia_x, ib0);
+    y = (double *) particle.attribute_array(it, ia_y, ib0);
+    z = (double *) particle.attribute_array(it, ia_z, ib0);
+    nx = (double *) particle.attribute_array(it, ia_nx, ib0);
+    ny = (double *) particle.attribute_array(it, ia_ny, ib0);
+    nz = (double *) particle.attribute_array(it, ia_nz, ib0);
+    sx = (double *) particle.attribute_array(it, ia_sx, ib0);
+    sy = (double *) particle.attribute_array(it, ia_sy, ib0);
+    sz = (double *) particle.attribute_array(it, ia_sz, ib0);
+    flux = (double *) particle.attribute_array(it, ia_f, ib0);
+    time = (double *) particle.attribute_array(it, ia_time, ib0);
+    radius = (double *) particle.attribute_array(it, ia_r, ib0);
+
+    x[ipp0*ps] = start[0];
+    y[ipp0*ps] = start[1];
+    z[ipp0*ps] = start[2];
+    nx[ipp0*ps] = unit[0];
+    ny[ipp0*ps] = unit[1];
+    nz[ipp0*ps] = unit[2];
+    sx[ipp0*ps] = start[0];
+    sy[ipp0*ps] = start[1];
+    sz[ipp0*ps] = start[2];
+    flux[ipp0*ps] = 1.0;
+    time[ipp0*ps] = enzo_block->time();
+    radius[ipp0*ps] = 0.0;
+
+    printf("[0] Created a ray. ib0=%d, ipp0=%d, r0=%g\n", ib0, ipp0, radius[ipp0*ps]);
+    
+  }
+  
+  return;
+  
+}
+
+//----------------------------------------------------------------------
+//----------------------------------------------------------------------
 //----------------------------------------------------------------------
 
 double EnzoMethodRayTracer::timestep ( Block * block ) const throw()

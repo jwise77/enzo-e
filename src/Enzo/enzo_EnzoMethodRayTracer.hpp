@@ -37,12 +37,22 @@ public: // interface
 
   virtual double timestep( Block * block) const throw();
 
+  void setup_attributes( EnzoBlock * enzo_block) throw();
+  void trace_rays( EnzoBlock * enzo_block) throw();
+  void generate_rays( EnzoBlock * enzo_block) throw();
+
   virtual std::string name () throw () 
   { return "ray_tracer"; }
 
 protected: // interface
 
   int rays_per_cell_;
+
+private:
+  int it, ia_x, ia_y, ia_z, ia_nx, ia_ny, ia_nz, ia_sx,
+    ia_sy, ia_sz, ia_f, ia_r, ia_time;
+  int ps;
+  
 };
 
 #endif /* ENZO_ENZO_METHOD_RAYTRACER_HPP */
