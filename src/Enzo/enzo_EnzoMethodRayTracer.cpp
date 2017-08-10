@@ -218,9 +218,10 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 
 	  // Radius at the next tranversal
 	  oldr = radius[ipps];
-	  // avoid being on the edge
-	  thisr = nce - sx[ipps] + ETA_TOLERANCE;
+	  thisr = nce - sx[ipps];
 	  dr = thisr - oldr;
+	  // avoid being on the edge
+	  dr += OMEGA_TOLERANCE*dx;
 
 	  // Do not transport longer than the timestep
 	  ddr = MIN(dr, c*(EndTime - time[ipps]));
@@ -236,7 +237,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  ix += n_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix > Nx)
+	  if (ix < gx || ix >= Nx)
 	    keep_walking = 0;
 
 	  // tiny number for now. Change to physically motivated one later.
@@ -261,6 +262,11 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	int ipps = ip*ps;
 	int nx_sign = SIGN(nx[ipps]);
 	int ny_sign = SIGN(ny[ipps]);
+
+	// Avoid zeros in the normal directions and dividing by zero
+	if (nx_sign == 0) { nx[ipps] = ETA_TOLERANCE; nx_sign = 1; }
+	if (ny_sign == 0) { ny[ipps] = ETA_TOLERANCE; ny_sign = 1; }
+
 	int nx_dir = (nx_sign+1)/2;
 	int ny_dir = (ny_sign+1)/2;
 
@@ -275,14 +281,12 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	if (y[ipps] == fy) iy += (ny_sign-1)/2;
 
 	// Inverse normals (for determining directions)
-	if (fabs(nx[ipps]) < ETA_TOLERANCE) nx[ipps] = nx_sign * ETA_TOLERANCE;
-	if (fabs(ny[ipps]) < ETA_TOLERANCE) ny[ipps] = ny_sign * ETA_TOLERANCE;
 	double nx_inv = 1.0 / nx[ipps];
 	double ny_inv = 1.0 / ny[ipps];
 	
 	int i, direction, keep_walking = 1;
 	double cex, cey, ncex, ncey, drx, dry;
-	double oldr, thisr, min_r, dr, ddr, dt;
+	double oldr, min_r, dr, ddr, dt;
 	while (keep_walking) {
 	  
 	  // This and the next cell edge
@@ -306,9 +310,9 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	  
 	  // Radius at the next tranversal
 	  oldr = radius[ipps];
+	  dr = min_r - oldr;
 	  // avoid being on the edge
-	  thisr = min_r + ETA_TOLERANCE;
-	  dr = thisr - oldr;
+	  dr += OMEGA_TOLERANCE*dx;
 
 	  // Do not transport longer than the timestep
 	  ddr = MIN(dr, c*(EndTime - time[ipps]));
@@ -330,7 +334,7 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 	    iy += ny_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix > Nx || iy < gy || iy > Ny)
+	  if (ix < gx || ix >= Nx || iy < gy || iy >= Ny)
 	    keep_walking = 0;
 
 	  // tiny number for now. Change to physically motivated one later.
