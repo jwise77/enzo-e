@@ -466,7 +466,7 @@ public:
   // CONTROL AND SYNCHRONIZATION
   //--------------------------------------------------
 
-  /// Syncronize before continuing with next callback
+  /// Synchronize before continuing with next callback
   void control_sync (int entry_point, int sync, int id = 0);
 
   /// synchronize with count other chares; count only needs to be supplied once

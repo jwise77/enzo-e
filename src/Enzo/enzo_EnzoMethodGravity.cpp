@@ -71,7 +71,7 @@ void EnzoMethodGravity::compute(Block * block) throw()
 void EnzoBlock::r_method_gravity_continue()
 {
 
-  TRACE_METHOD("r_method_gravity_end()",this);
+  TRACE_METHOD("r_method_gravity_continue()",this);
 
   // So do refresh with barrier synch (note barrier instead of
   // neighbor synchronization otherwise will conflict with Method
