@@ -123,8 +123,8 @@ module enzo {
     entry void p_method_turbulence_end(CkReductionMsg *msg);
 
     // EnzoMethodRayTracer synchronization entry methods
-    entry void p_method_raytracer_continue();
-    entry void p_method_raytracer_end(CkReductionMsg * msg);
+    entry void p_method_rt_receive_rays(CkReductionMsg * msg);
+    entry void p_method_rt_end(CkReductionMsg * msg);
 
     // EnzoMethodGravity synchronization entry methods
     entry void r_method_gravity_continue();

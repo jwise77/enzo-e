@@ -235,11 +235,11 @@ public: /// entry methods
 
   //--------------------------------------------------
 
-  /// Synchronize after generating rays. Traces rays.
-  void p_method_raytracer_continue();
+  /// Synchronize after generating rays. Receive/unpack/process rays.
+  void p_method_rt_receive_rays(CkReductionMsg * msg);
 
   /// Synchronize for refresh, ending when all ray tracing is complete.
-  void p_method_raytracer_end(CkReductionMsg * msg);
+  void p_method_rt_end(CkReductionMsg * msg);
 
   //--------------------------------------------------
 

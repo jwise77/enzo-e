@@ -59,55 +59,39 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 
   EnzoBlock * enzo_block = static_cast<EnzoBlock*> (block);
 
-  // Refresh rays (TODO: should we remove synchronization because only
-  // need rays that have already arrived from neighbors.)
-  Particle particle (enzo_block->data()->particle());
-  Refresh refresh(4, 0, neighbor_leaf, sync_barrier);
-  refresh.set_active(enzo_block->is_leaf());
-  refresh.add_particle(particle.type_index("rays"));
-
   const EnzoConfig * enzo_config = static_cast<const EnzoConfig*>
     (enzo_block->simulation()->config());
 
+  // Setup an quiescence (all work/msgs finished) exit call
+  CkStartQD(CkCallback(CkIndex_EnzoBlock::p_method_rt_end(NULL),
+		       block->thisProxy));
+  
   setup_attributes(enzo_block);
   generate_rays(enzo_block);
-
-  enzo_block->refresh_enter
-    (CkIndex_EnzoBlock::p_method_raytracer_continue(), &refresh);
-
-  trace_rays(enzo_block);
+  process_local(enzo_block);
   
 }
 
 //----------------------------------------------------------------------
 
-void EnzoBlock::p_method_raytracer_continue()
+void EnzoMethodRayTracer::process_local( EnzoBlock * enzo_block) throw()
 {
 
-  TRACE_RT("p_method_raytracer_continue()", this);
+  TRACE_RT("process_local()", enzo_block);
 
-  // Refresh rays. Only exit if everything is finished (nothing in the
-  // queue, no messages in flight).
-  Particle particle (data()->particle());
-  
-  Refresh refresh(4, 0, neighbor_leaf, sync_barrier);
-  refresh.set_active(is_leaf());
-  refresh.add_particle(particle.type_index("rays"));
-
-  refresh_enter
-    (CkIndex_EnzoBlock::p_method_raytracer_continue(), &refresh);
-  
   // Ray trace
-  EnzoMethodRayTracer * method =
-    static_cast<EnzoMethodRayTracer *> (this->method());
-
   int n_ray_exit;
-  n_ray_exit = method->trace_rays(this);
+  n_ray_exit = trace_rays(enzo_block);
 
-  //control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_barrier);
-  control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_quiescence);
-    
-  //p_method_raytracer_end(NULL);
+  // Pack and send any rays that have exited the block. Model after
+  // the particle refreshes in Cello/control_refresh.cpp.
+  
+  /*
+    for (index_neighbor = ...) {
+      packed_rays = ...;
+      proxy_block[index_neighbor].p_receive_rays(packed_rays);
+    }
+   */
   
   return;
   
@@ -115,7 +99,28 @@ void EnzoBlock::p_method_raytracer_continue()
 
 //----------------------------------------------------------------------
 
-void EnzoBlock::p_method_raytracer_end(CkReductionMsg * msg)
+void EnzoBlock::p_method_rt_receive_rays(CkReductionMsg * msg)
+{
+
+  TRACE_RT("p_method_receive_rays()", this);
+
+  delete msg;
+
+  // Unpack rays
+
+
+  // Process the rays
+  //EnzoMethodRayTracer * method =
+  //  static_cast<EnzoMethodRayTracer *> (this->method());
+  //int n_ray_exit = method->trace_rays(this);
+  
+  return;
+  
+}
+
+//----------------------------------------------------------------------
+
+void EnzoBlock::p_method_rt_end(CkReductionMsg * msg)
 {
 
   TRACE_RT("p_method_raytracer_end()", this);
