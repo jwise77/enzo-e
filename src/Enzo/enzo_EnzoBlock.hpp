@@ -235,6 +235,14 @@ public: /// entry methods
 
   //--------------------------------------------------
 
+  /// Synchronize after generating rays. Traces rays.
+  void p_method_raytracer_continue();
+
+  /// Synchronize for refresh, ending when all ray tracing is complete.
+  void p_method_raytracer_end(CkReductionMsg * msg);
+
+  //--------------------------------------------------
+
   /// Synchronize after potential solve and before accelerations
   void r_method_gravity_continue();
 

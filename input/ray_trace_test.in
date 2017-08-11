@@ -13,7 +13,7 @@
     Mesh {
        root_rank   = 3; 
        root_size   = [32, 32, 32];
-       root_blocks = [2,2,2];
+       root_blocks = [2,2,1];
     }
 
     Adapt {
@@ -81,28 +81,13 @@
    Boundary { type = "periodic";}
 
    Stopping {
-       cycle = 2;
+       cycle = 4;
    }
 
 
    Output {
 
-      list = ["density","ray_count","mesh"];
-
-      density {
-
-         name       = ["ray-trace-de-%04d.png","cycle"];
-         type       = "image";
-         field_list = ["density"];
-
-         image_type = "data";
-         image_size = [640,640];
-
-         include "input/schedule_cycle_1.incl"
-
-	 include "input/colormap_greyscale.incl"
-
-      }
+      list = ["ray_count"];
 
       ray_count {
 
@@ -119,17 +104,4 @@
 	 include "input/colormap_greyscale.incl"
 
       }
-
-      mesh {
-	type     = "image";
-	image_type  = "mesh";
-	image_reduce_type = "max";
-#	image_block_size  = 5;
-	image_size = [640,640];
-        include "input/schedule_cycle_1.incl"
-	image_min = 0.0;
-	image_max = 1.0;
-        include "input/colormap_greyscale.incl"
-      }
-
   }

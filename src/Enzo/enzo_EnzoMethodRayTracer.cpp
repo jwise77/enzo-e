@@ -11,11 +11,11 @@
 #define DEBUG_RAYS
 
 #ifdef DEBUG_RAYS
-#  define TRACE_RT(MESSAGE)						\
-  CkPrintf ("%s:%d %s\n",						\
-	    __FILE__,__LINE__,MESSAGE);				
+#  define TRACE_RT(MESSAGE, BLOCK)					\
+  CkPrintf ("[%s] %s:%d %s\n",						\
+	    (BLOCK != NULL) ? BLOCK->name().c_str() : "root", __FILE__,__LINE__,MESSAGE);				
 #else
-#  define TRACE_RT(MESSAGE) /* ... */
+#  define TRACE_RT(MESSAGE, BLOCK) /* ... */
 #endif
 
 //----------------------------------------------------------------------
@@ -55,18 +55,77 @@ void EnzoMethodRayTracer::pup (PUP::er &p)
 void EnzoMethodRayTracer::compute ( Block * block) throw()
 {
 
-  TRACE_RT("compute()");
+  TRACE_RT("compute()", block);
 
   EnzoBlock * enzo_block = static_cast<EnzoBlock*> (block);
+
+  // Refresh rays (TODO: should we remove synchronization because only
+  // need rays that have already arrived from neighbors.)
+  Particle particle (enzo_block->data()->particle());
+  Refresh refresh(4, 0, neighbor_leaf, sync_barrier);
+  refresh.set_active(enzo_block->is_leaf());
+  refresh.add_particle(particle.type_index("rays"));
 
   const EnzoConfig * enzo_config = static_cast<const EnzoConfig*>
     (enzo_block->simulation()->config());
 
   setup_attributes(enzo_block);
   generate_rays(enzo_block);
+
+  enzo_block->refresh_enter
+    (CkIndex_EnzoBlock::p_method_raytracer_continue(), &refresh);
+
   trace_rays(enzo_block);
-    
-  block->compute_done(); 
+  
+}
+
+//----------------------------------------------------------------------
+
+void EnzoBlock::p_method_raytracer_continue()
+{
+
+  TRACE_RT("p_method_raytracer_continue()", this);
+
+  // Refresh rays. Only exit if everything is finished (nothing in the
+  // queue, no messages in flight).
+  Particle particle (data()->particle());
+  
+  Refresh refresh(4, 0, neighbor_leaf, sync_barrier);
+  refresh.set_active(is_leaf());
+  refresh.add_particle(particle.type_index("rays"));
+
+  refresh_enter
+    (CkIndex_EnzoBlock::p_method_raytracer_end(NULL), &refresh);
+  
+  // Ray trace
+  EnzoMethodRayTracer * method =
+    static_cast<EnzoMethodRayTracer *> (this->method());
+  method->trace_rays(this);
+
+  //control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_barrier);
+  //control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_quiescence);
+  //p_method_raytracer_end(NULL);
+  
+  return;
+  
+}
+
+//----------------------------------------------------------------------
+
+void EnzoBlock::p_method_raytracer_end(CkReductionMsg * msg)
+{
+
+  TRACE_RT("p_method_raytracer_end()", this);
+
+  delete msg;
+
+  // TODO: call grackle from here, updating all of the cells with
+  // radiation
+  
+  compute_done();
+  
+  return;
+  
 }
 
 //----------------------------------------------------------------------
@@ -104,6 +163,11 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 
   Particle particle (enzo_block->data()->particle());
   Field    field    (enzo_block->data()->field());
+
+  // If no rays to trace, exit immediately
+  // (08/11/17 - JHW: Why isn't this working?)
+  //if (particle.num_particles(it))
+  //  return;
   
   //enzo_float *density = (enzo_float *) field.values("density");
   enzo_float *ray_count = (enzo_float *) field.values("ray_count");
@@ -134,17 +198,17 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
   double *sx = 0, *sy = 0, *sz = 0;
   double *flux = 0, *radius = 0, *time = 0;
 
-    const int nb = particle.num_batches(it);
+  const int nb = particle.num_batches(it);
   printf("[0] le %g %g %g // re = %g %g %g\n", lx, ly, lz, ux, uy, uz);
   printf("[0] np=%d, nb=%d, ia_f=%d\n", particle.num_particles(it,0), nb, ia_f);
   
-  TRACE_RT("trace_rays()");
+  TRACE_RT("trace_rays()", enzo_block);
   
   // Loop over ray particle batches and then individual rays
   for (int ib = 0; ib < nb; ib++) {
 
     const int np = particle.num_particles(it,ib);
-    TRACE_RT("trace_rays_loop()");
+    TRACE_RT("trace_rays_loop()", enzo_block);
     
     if (rank >= 1) {
       x  = (double *) particle.attribute_array(it, ia_x, ib);
@@ -165,7 +229,7 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
     flux = (double *) particle.attribute_array(it, ia_f, ib);
     radius = (double *) particle.attribute_array(it, ia_r, ib);
     time = (double *) particle.attribute_array(it, ia_time, ib);
-
+    
     if (rank == 1) {
       for (int ip = 0; ip < np; ip++) {
 
@@ -457,6 +521,29 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
       }  // ENDFOR rays
     } // ENDIF rank == 3
 
+    // Check whether any rays have exited the domain.  Need to reset
+    // their source positions so that they appear "outside" the domain.
+
+    //     ... domain extents
+    double dxm,dym,dzm;
+    double dxp,dyp,dzp;
+    enzo_block->simulation()->hierarchy()->lower(&dxm,&dym,&dzm);
+    enzo_block->simulation()->hierarchy()->upper(&dxp,&dyp,&dzp);
+    
+    for (int ip = 0; ip < np; ip++) {
+      int ipps = ip*ps;
+      if (x[ipps] < dxm) sx[ipps] += +(dxp - dxm);
+      if (x[ipps] > dxp) sx[ipps] += -(dxp - dxm);
+      if (rank >= 2) {
+	if (y[ipps] < dym) sy[ipps] += +(dyp - dym);
+	if (y[ipps] > dyp) sy[ipps] += -(dyp - dym);
+      }
+      if (rank >= 3) {
+	if (z[ipps] < dzm) sz[ipps] += +(dzp - dzm);
+	if (z[ipps] > dzp) sz[ipps] += -(dzp - dzm);
+      }
+    } // ENDFOR particles
+    
   } // ENDFOR blocks
 
   return;
@@ -468,7 +555,7 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 void EnzoMethodRayTracer::generate_rays ( EnzoBlock * enzo_block) throw()
 {
 
-  TRACE_RT("generate_rays()");
+  TRACE_RT("generate_rays()", enzo_block);
   Particle particle (enzo_block->data()->particle());
   
   const int rank = enzo_block->rank();
@@ -534,7 +621,7 @@ void EnzoMethodRayTracer::generate_rays ( EnzoBlock * enzo_block) throw()
 double EnzoMethodRayTracer::timestep ( Block * block ) const throw()
 {
 
-  TRACE_RT("timestep()");
+  TRACE_RT("timestep()", block);
 
   const double dt = 0.1;
   return dt;
