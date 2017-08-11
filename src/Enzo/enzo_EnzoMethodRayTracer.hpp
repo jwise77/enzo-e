@@ -38,7 +38,7 @@ public: // interface
   virtual double timestep( Block * block) const throw();
 
   void setup_attributes( EnzoBlock * enzo_block) throw();
-  void trace_rays( EnzoBlock * enzo_block) throw();
+  int trace_rays( EnzoBlock * enzo_block) throw();
   void generate_rays( EnzoBlock * enzo_block) throw();
 
   virtual std::string name () throw () 

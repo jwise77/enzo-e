@@ -81,7 +81,7 @@
    Boundary { type = "periodic";}
 
    Stopping {
-       cycle = 4;
+       cycle = 1;
    }
 
 

@@ -95,15 +95,18 @@ void EnzoBlock::p_method_raytracer_continue()
   refresh.add_particle(particle.type_index("rays"));
 
   refresh_enter
-    (CkIndex_EnzoBlock::p_method_raytracer_end(NULL), &refresh);
+    (CkIndex_EnzoBlock::p_method_raytracer_continue(), &refresh);
   
   // Ray trace
   EnzoMethodRayTracer * method =
     static_cast<EnzoMethodRayTracer *> (this->method());
-  method->trace_rays(this);
+
+  int n_ray_exit;
+  n_ray_exit = method->trace_rays(this);
 
   //control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_barrier);
-  //control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_quiescence);
+  control_sync(CkIndex_EnzoBlock::p_method_raytracer_end(NULL), sync_quiescence);
+    
   //p_method_raytracer_end(NULL);
   
   return;
@@ -158,17 +161,16 @@ void EnzoMethodRayTracer::setup_attributes ( EnzoBlock * enzo_block) throw()
   
 }
 
-void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
+int EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 {
 
   Particle particle (enzo_block->data()->particle());
   Field    field    (enzo_block->data()->field());
 
   // If no rays to trace, exit immediately
-  // (08/11/17 - JHW: Why isn't this working?)
-  //if (particle.num_particles(it))
-  //  return;
-  
+  if (particle.num_particles(it) == 0)
+    return 0;
+
   //enzo_float *density = (enzo_float *) field.values("density");
   enzo_float *ray_count = (enzo_float *) field.values("ray_count");
 
@@ -186,9 +188,9 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
   field.dimensions(0, &mx, &my, &mz);
   field.ghost_depth(0, &gx, &gy, &gz);
 
-  // Just use a huge number for now so that all rays track through the
-  // entire block. Should be dtPhoton instead of 1e20.
-  const enzo_float EndTime = enzo_block->time() + 1e20;
+  // Just use sqrt(3) for now so that all rays track through the
+  // entire block (corner to corner). Should be dtPhoton instead.
+  const enzo_float EndTime = enzo_block->time() + sqrt(3.0);
   const double c = 1;  // worry about units later
   const double c_inv = 1.0 / c;
   
@@ -198,6 +200,9 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
   double *sx = 0, *sy = 0, *sz = 0;
   double *flux = 0, *radius = 0, *time = 0;
 
+  // Number of rays exiting the block
+  int n_ray_exit = 0;
+  
   const int nb = particle.num_batches(it);
   printf("[0] le %g %g %g // re = %g %g %g\n", lx, ly, lz, ux, uy, uz);
   printf("[0] np=%d, nb=%d, ia_f=%d\n", particle.num_particles(it,0), nb, ia_f);
@@ -278,16 +283,17 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 	  ix += n_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix >= Nx)
+	  if (ix < gx || ix >= Nx) {
+	    n_ray_exit++;
 	    keep_walking = 0;
-
+	  }
 	  // tiny number for now. Change to physically motivated one later.
-	  else if (flux[ipps] < 1e-20)
+	  else if (flux[ipps] < 1e-20) {
 	    keep_walking = 0;
-
-	  else if (time[ipps] >= EndTime)
+	  }
+	  else if (time[ipps] >= EndTime) {
 	    keep_walking = 0;
-	  
+	  }
 	} // ENDWHILE keep_walking
 	
       }  // ENDFOR rays
@@ -375,15 +381,17 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 	    iy += ny_dir;
 
 	  // Finished (exit the grid, attenuated, or cdt)?
-	  if (ix < gx || ix >= Nx || iy < gy || iy >= Ny)
+	  if (ix < gx || ix >= Nx || iy < gy || iy >= Ny) {
 	    keep_walking = 0;
-
+	    n_ray_exit++;
+	  }
 	  // tiny number for now. Change to physically motivated one later.
-	  else if (flux[ipps] < 1e-20)
+	  else if (flux[ipps] < 1e-20) {
 	    keep_walking = 0;
-
-	  else if (time[ipps] >= EndTime)
+	  }
+	  else if (time[ipps] >= EndTime) {
 	    keep_walking = 0;
+	  }
 	  
 	} // ENDWHILE keep_walking
 	
@@ -490,7 +498,7 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 	  printf("[B] %g %g %g // %g %d\n", drx, dry, drz, min_r, direction);
 	  printf("[C] %d %g :: %g %g %g %g\n", i, ray_count[i], oldr,
 		 dr, ddr, dt);
-	  printf("[D] %g %g %g\n", x[ipps], y[ipps], z[ipps]);
+	  printf("[D] %g %g %g, t=%g/%g\n", x[ipps], y[ipps], z[ipps], time[ipps], EndTime);
 	  
 
 	  if (direction == 0)
@@ -505,6 +513,7 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
 	      iy < 0 || iy >= Ny ||
 	      iz < 0 || iz >= Nz) {
 	    keep_walking = 0;
+	    n_ray_exit++;
 	    printf("Exited grid\n");
 	  }
 	  // tiny number for now. Change to physically motivated one later.
@@ -546,7 +555,7 @@ void EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
     
   } // ENDFOR blocks
 
-  return;
+  return n_ray_exit;
 
 }
 
