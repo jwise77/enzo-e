@@ -1,0 +1,107 @@
+    ### Problem : Ray tracing Test
+    ### Summary : Very basic test for the ray tracing machinery.
+    ###           Sets up a uniform density box with one block and one ray.
+    ###    Date : 2017-08-08
+    ###  Author : John H. Wise (jwise@gatech.edu)
+
+
+    Domain {
+       lower = [0.0, 0.0, 0.0];
+       upper = [1.0, 1.0, 1.0];
+    }
+
+    Mesh {
+       root_rank   = 3; 
+       root_size   = [32, 32, 32];
+       root_blocks = [2,2,1];
+    }
+
+    Adapt {
+       max_level = 0;
+    }
+
+    Field {
+
+        ghost_depth =   3; # check to see if this is needed
+        gamma       = 1.66667;
+
+        list = [
+          "density", "ray_count"
+        ] ;
+
+    }
+
+
+    Particle {
+
+        list = ["rays"]; # add particle type stars
+
+        rays {
+
+            # define attributes of this particle
+            # and set variable type
+            attributes = ["x", "double",
+                          "y", "double",
+                          "z", "double",
+                          "normal_x", "double",
+                          "normal_y", "double",
+                          "normal_z", "double",
+                          "source_x", "double",
+                          "source_y", "double",
+                          "source_z", "double",
+                          "radius", "double",
+                          "time", "double",
+                          "flux", "double"];
+
+           position = ["x","y","z"];
+       }
+
+   }
+
+   Method {
+
+      list = ["ray_tracer"];
+
+      ray_tracer {
+          rays_per_cell = 5.1;
+      }
+   }
+
+
+   Initial {
+
+       list = ["value"];
+
+       value {
+           density = 1.0;
+           ray_count = 0.0;
+       }
+   }
+
+   Boundary { type = "periodic";}
+
+   Stopping {
+       cycle = 1;
+   }
+
+
+   Output {
+
+      list = ["ray_count"];
+
+      ray_count {
+
+         name       = ["ray-trace-count-%04d.png","cycle"];
+         type       = "image";
+         field_list = ["ray_count"];
+
+         image_type = "data+mesh";
+	 #image_reduce_type = "sum";
+         image_size = [640,640];
+
+         include "input/schedule_cycle_1.incl"
+
+	 include "input/colormap_greyscale.incl"
+
+      }
+  }

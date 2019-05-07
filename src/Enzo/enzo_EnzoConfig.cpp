@@ -111,6 +111,7 @@ EnzoConfig::EnzoConfig() throw ()
   // EnzoMethodTurbulence
   method_turbulence_edot(0.0),
   method_turbulence_mach_number(0.0),
+
   // EnzoMethodGravity
   method_gravity_grav_const(0.0),
   method_gravity_solver(""),
@@ -133,8 +134,18 @@ EnzoConfig::EnzoConfig() throw ()
   solver_local(),
   solver_coarse_level(),
   solver_is_unigrid(),
-  stopping_redshift()
+  stopping_redshift(),
  
+  // EnzoMethodPmDeposit
+  method_pm_deposit_type(""),
+  // EnzoMethodPmUpdate
+  method_pm_update_max_dt(0.0),
+  // EnzoMethodStarMakerCenOstriker
+  star_maker_co_density_threshold(100.),
+  star_maker_co_efficiency(0.10),
+  // EnzoMethodRayTracer
+  rays_per_cell(5.1)
+
 {
   for (int i=0; i<3; i++) {
     initial_sedov_array[i] = 0;
@@ -307,6 +318,8 @@ void EnzoConfig::pup (PUP::er &p)
 
 #endif /* CONFIG_USE_GRACKLE */
 
+  p | star_maker_co_density_threshold;
+  p | star_maker_co_efficiency;
 }
 
 //----------------------------------------------------------------------
@@ -832,6 +845,12 @@ void EnzoConfig::read(Parameters * p) throw()
     }
   }  
 #endif /* CONFIG_USE_GRACKLE */
+
+  star_maker_co_density_threshold = p->value_float
+    ("Method:star_maker_co:density_threshold", 100.0);
+  star_maker_co_efficiency = p->value_float
+    ("Method:star_maker_co:efficiency", 0.10);
+
 
   TRACE("END   EnzoConfig::read()");
 }

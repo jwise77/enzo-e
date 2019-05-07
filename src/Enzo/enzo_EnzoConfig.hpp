@@ -157,8 +157,12 @@ public: // interface
       solver_coarse_level(),
       solver_is_unigrid(),
       // EnzoStopping
-      stopping_redshift()
-      
+      stopping_redshift(),
+      // EnzoMethodStarMakerCenOstriker
+      star_maker_co_density_threshold(),
+      star_maker_co_efficiency(),
+      // EnzoMethodRayTracer
+      rays_per_cell(5.1)
   {
     for (int axis=0; axis<3; axis++) {
       initial_sedov_array[axis] = 0;
@@ -375,6 +379,13 @@ public: // attributes
   chemistry_data  method_grackle_chemistry;
 
 #endif /* CONFIG_USE_GRACKLE */
+
+  // EnzoMethodStarMakerCenOstriker
+  double star_maker_co_density_threshold;
+  double star_maker_co_efficiency;
+
+  // Ray tracer
+  float rays_per_cell;
 
 };
 

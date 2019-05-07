@@ -522,7 +522,7 @@ public:
   // CONTROL AND SYNCHRONIZATION
   //--------------------------------------------------
 
-  /// Syncronize before continuing with next callback
+  /// Synchronize before continuing with next callback
   void control_sync (int entry_point, int sync_type, int id, int min_face_rank,
 		     int neighbor_type,int root_level);
 

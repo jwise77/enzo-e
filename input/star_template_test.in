@@ -1,0 +1,158 @@
+    ### Problem : Star Template Test
+    ### Summary : Very basic star formation machinery test using
+    ###           star template. Sets up gas spheres of varying
+    ###           density, only a few of which have density threshold
+    ###           to form stars.
+    ###    Date : 2017-06-08
+    ###  Author : Andrew Emerick (emerick@astro.columbia.edu)
+
+
+    Domain {
+       lower = [0.0, 0.0, 0.0];
+       upper = [1.0, 1.0, 1.0];
+    }
+
+    # we could possibly remove this:
+    Adapt {
+       max_level = 3;
+       list = ["slope"];
+       slope {
+         type = "slope";
+         field_list = ["density"];
+         min_refine = 10.0;
+         max_coarsen = 2.0;
+       }
+    }
+
+
+    Mesh {
+       root_rank   = 3; 
+       root_size   = [32, 32, 32];
+       root_blocks = [  4, 4,  4];
+    }
+
+    Field {
+
+        ghost_depth =   4; # check to see if this is needed
+        gamma       = 1.4;
+
+        list = [
+          "density",
+          "velocity_x",
+          "velocity_y",
+          "velocity_z",
+          "total_energy",
+          "internal_energy",
+          "pressure"
+         # , "temperature" # could be nice but not sure
+        ] ;
+
+    }
+
+
+    Particle {
+
+        list = ["stars"]; # add particle type stars
+
+        stars {
+            groups = ["has_mass"]; # they have mass, evolve them accordingly
+
+            # define attributes of this particle
+            # and set variable type
+            attributes = ["x", "double",
+                          "y", "double",
+                         "z", "double",
+                         "vx", "double",
+                         "vy", "double",
+                         "vz", "double",
+                         "mass", "double"];
+
+           position = ["x","y","z"];
+       }
+
+   }
+
+
+   Method {
+
+      list = ["ppm", "star_maker_co"];
+
+      ppm {
+          courant = 0.8;
+          diffusion   = true;
+          flattening  = 3;
+          steepening  = true;
+          dual_energy = false;
+      }
+
+      star_maker_co {  # need to rename
+          density_threshold = 1.0;
+          efficiency = 0.02;
+      }
+   }
+
+
+   Initial {
+
+       list = ["value"];
+
+       value {
+          density      = [1.0,
+            ((x - 0.5)*(x - 0.5) + (y - 0.5)*(y - 0.5) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.25)*(x - 0.25) + (y - 0.25)*(y - 0.25) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.75)*(x - 0.75) + (y - 0.75)*(y - 0.75) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.25)*(x - 0.25) + (y - 0.75)*(y - 0.75) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.75)*(x - 0.75) + (y - 0.25)*(y - 0.25) + (z - 0.5)*(z - 0.5) < 0.01),
+                         0.1];
+          total_energy = [1.0 / (0.4 * 1.0) ,
+            ((x - 0.5)*(x - 0.5) + (y - 0.5)*(y - 0.5) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.25)*(x - 0.25) + (y - 0.25)*(y - 0.25) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.75)*(x - 0.75) + (y - 0.75)*(y - 0.75) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.25)*(x - 0.25) + (y - 0.75)*(y - 0.75) + (z - 0.5)*(z - 0.5) < 0.01) ||
+            ((x - 0.75)*(x - 0.75) + (y - 0.25)*(y - 0.25) + (z - 0.5)*(z - 0.5) < 0.01),
+                          0.1 / (0.4 * 0.1)];
+
+          velocity_x = 0.0;
+          velocity_y = 0.0;
+          velocity_z = 0.0;
+      }
+   }
+
+   Boundary { type = "outflow";}
+
+   Stopping {
+       time = 0.1;
+   }
+
+
+   Output {
+
+      list = ["density","stars"];
+
+      density {
+
+         name       = ["star_template-de-%04d.png","cycle"];
+         type       = "image";
+         field_list = ["density"];
+
+         image_type = "data";
+         image_size = [640,640];
+
+         include "input/schedule_cycle_1.incl"
+
+         include "input/colormap_rainbow.incl"
+
+      }
+   
+      stars {
+          type = "image";
+          particle_list = ["stars"];
+          include "input/colormap_rainbow.incl"
+
+          image_size = [640,640];
+
+          name = ["star_template-stars-%04d.png", "cycle"];
+          include "input/schedule_cycle_1.incl"
+      }
+
+  }
