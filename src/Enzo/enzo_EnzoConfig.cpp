@@ -136,10 +136,6 @@ EnzoConfig::EnzoConfig() throw ()
   solver_is_unigrid(),
   stopping_redshift(),
  
-  // EnzoMethodPmDeposit
-  method_pm_deposit_type(""),
-  // EnzoMethodPmUpdate
-  method_pm_update_max_dt(0.0),
   // EnzoMethodStarMakerCenOstriker
   star_maker_co_density_threshold(100.),
   star_maker_co_efficiency(0.10),

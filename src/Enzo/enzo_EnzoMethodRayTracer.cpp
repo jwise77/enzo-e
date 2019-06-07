@@ -30,7 +30,8 @@ EnzoMethodRayTracer::EnzoMethodRayTracer
 {
   // Initialize default Refresh object
 
-  const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier);
+  const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier,
+			     enzo_sync_id_method_ray_tracer);
   refresh(ir)->add_all_particles(particle_descr->num_types());
   refresh(ir)->add_all_fields(field_descr->field_count());
 
@@ -57,18 +58,19 @@ void EnzoMethodRayTracer::compute ( Block * block) throw()
 
   TRACE_RT("compute()", block);
 
-  EnzoBlock * enzo_block = static_cast<EnzoBlock*> (block);
-
-  const EnzoConfig * enzo_config = static_cast<const EnzoConfig*>
-    (enzo_block->simulation()->config());
+  EnzoBlock * enzo_block = enzo::block(block);
 
   // Setup an quiescence (all work/msgs finished) exit call
-  CkStartQD(CkCallback(CkIndex_EnzoBlock::p_method_rt_end(NULL),
-		       block->thisProxy));
+  // CkStartQD(CkCallback(CkIndex_EnzoBlock::p_method_rt_end(NULL),
+  // 		       block->thisProxy));
   
-  setup_attributes(enzo_block);
-  generate_rays(enzo_block);
-  process_local(enzo_block);
+  if (block->is_leaf()) {
+    setup_attributes(enzo_block);
+    generate_rays(enzo_block);
+    process_local(enzo_block);
+  }
+
+  block->compute_done();
   
 }
 

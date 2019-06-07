@@ -19,7 +19,8 @@ EnzoMethodStarMakerCenOstriker::EnzoMethodStarMakerCenOstriker
 {
   // Initialize default Refresh object
 
-  const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier);
+  const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier,
+                             enzo_sync_id_method_cen_ostriker);
   refresh(ir)->add_all_fields(field_descr->field_count());
 
   // PPM parameters initialized in EnzoBlock::initialize()

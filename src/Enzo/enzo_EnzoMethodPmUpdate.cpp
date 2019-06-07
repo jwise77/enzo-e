@@ -107,6 +107,8 @@ void EnzoMethodPmUpdate::compute ( Block * block) throw()
       interp_z.compute(block);
     }
 
+    Particle particle = block->data()->particle();
+
     const int it = particle.type_index ("dark");
 
     const int ia_x  = (rank >= 1) ? particle.attribute_index (it, "x") : -1;

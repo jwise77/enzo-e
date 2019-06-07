@@ -85,7 +85,6 @@ module enzo {
   PUPable EnzoMethodPmUpdate;
   PUPable EnzoMethodTurbulence;
   PUPable EnzoMethodGravity;
-  PUPable EnzoMethodComovingExpansion;
   PUPable EnzoMethodStarMakerCenOstriker;
   PUPable EnzoMethodRayTracer;
 
