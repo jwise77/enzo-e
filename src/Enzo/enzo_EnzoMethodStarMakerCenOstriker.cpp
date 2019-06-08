@@ -12,16 +12,15 @@
 
 EnzoMethodStarMakerCenOstriker::EnzoMethodStarMakerCenOstriker 
 (
- const FieldDescr * field_descr,
- EnzoConfig * enzo_config
-) 
+ const EnzoConfig * enzo_config
+)
   : Method()
 {
   // Initialize default Refresh object
 
   const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier,
                              enzo_sync_id_method_cen_ostriker);
-  refresh(ir)->add_all_fields(field_descr->field_count());
+  refresh(ir)->add_all_fields();
 
   // PPM parameters initialized in EnzoBlock::initialize()
 }
@@ -44,8 +43,7 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
 {
   EnzoBlock * enzo_block = static_cast<EnzoBlock*> (block);
 
-  const EnzoConfig * enzo_config = static_cast<const EnzoConfig*>
-    (enzo_block->simulation()->config());
+  const EnzoConfig * enzo_config = enzo::config();
 
   int star_counter = 0;
   // Are we at the highest level?
@@ -87,7 +85,7 @@ void EnzoMethodStarMakerCenOstriker::compute ( Block * block) throw()
 
     const int ps  = particle.stride(it,ia_m);
 
-    int rank = block->rank();
+    int rank = cello::rank();
 
     enzo_float * density    = (enzo_float *)field.values("density");
     enzo_float * velocity_x = (rank >= 1) ? 

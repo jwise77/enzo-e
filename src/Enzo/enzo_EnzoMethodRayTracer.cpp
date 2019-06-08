@@ -22,9 +22,7 @@
 
 EnzoMethodRayTracer::EnzoMethodRayTracer 
 (
- const FieldDescr * field_descr,
- const ParticleDescr * particle_descr, 
- EnzoConfig * enzo_config
+ const EnzoConfig * enzo_config
 ) 
   : Method()
 {
@@ -32,8 +30,8 @@ EnzoMethodRayTracer::EnzoMethodRayTracer
 
   const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier,
 			     enzo_sync_id_method_ray_tracer);
-  refresh(ir)->add_all_particles(particle_descr->num_types());
-  refresh(ir)->add_all_fields(field_descr->field_count());
+  refresh(ir)->add_all_particles();
+  refresh(ir)->add_all_fields();
 
   // Parameters initialized in EnzoBlock::initialize()
   
@@ -143,7 +141,7 @@ void EnzoBlock::p_method_rt_end(CkReductionMsg * msg)
 void EnzoMethodRayTracer::setup_attributes ( EnzoBlock * enzo_block) throw()
 {
 
-  const int rank = enzo_block->rank();
+  const int rank = cello::rank();
 
   // Obtain ray attributes
   Particle particle (enzo_block->data()->particle());
@@ -201,7 +199,7 @@ int EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
   const double c = 1;  // worry about units later
   const double c_inv = 1.0 / c;
   
-  const int rank = enzo_block->rank();
+  const int rank = cello::rank();
   double *x = 0, *y = 0, *z = 0;
   double *nx = 0, *ny = 0, *nz = 0;
   double *sx = 0, *sy = 0, *sz = 0;
@@ -543,8 +541,8 @@ int EnzoMethodRayTracer::trace_rays ( EnzoBlock * enzo_block) throw()
     //     ... domain extents
     double dxm,dym,dzm;
     double dxp,dyp,dzp;
-    enzo_block->simulation()->hierarchy()->lower(&dxm,&dym,&dzm);
-    enzo_block->simulation()->hierarchy()->upper(&dxp,&dyp,&dzp);
+    cello::hierarchy()->lower(&dxm,&dym,&dzm);
+    cello::hierarchy()->upper(&dxp,&dyp,&dzp);
     
     for (int ip = 0; ip < np; ip++) {
       int ipps = ip*ps;
@@ -574,7 +572,7 @@ void EnzoMethodRayTracer::generate_rays ( EnzoBlock * enzo_block) throw()
   TRACE_RT("generate_rays()", enzo_block);
   Particle particle (enzo_block->data()->particle());
   
-  const int rank = enzo_block->rank();
+  const int rank = cello::rank();
   double lx, ly, lz;
   double ux, uy, uz;
   enzo_block->lower(&lx, &ly, &lz);

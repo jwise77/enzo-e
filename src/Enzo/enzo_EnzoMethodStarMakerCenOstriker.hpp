@@ -17,8 +17,7 @@ class EnzoMethodStarMakerCenOstriker : public Method {
 public: // interface
 
   /// Create a new EnzoMethodStarMakerCenOstriker object
-  EnzoMethodStarMakerCenOstriker(const FieldDescr * field_descr,
-		EnzoConfig * enzo_config);
+  EnzoMethodStarMakerCenOstriker(const EnzoConfig * enzo_config);
 
   /// Charm++ PUP::able declarations
   PUPable_decl(EnzoMethodStarMakerCenOstriker);

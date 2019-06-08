@@ -71,6 +71,7 @@ enum {
 enum enzo_sync_id {
   enzo_sync_id_cg = sync_id_last,
   enzo_sync_id_comoving_expansion,
+  enzo_sync_id_method_cen_ostriker,
   enzo_sync_id_method_cosmology,
   enzo_sync_id_method_grackle,
   enzo_sync_id_method_gravity,
@@ -81,6 +82,7 @@ enum enzo_sync_id {
   enzo_sync_id_method_pm_update,
   enzo_sync_id_method_ppm,
   enzo_sync_id_method_ppml,
+  enzo_sync_id_method_ray_tracer,
   enzo_sync_id_method_turbulence,
   enzo_sync_id_solver_bicgstab,
   enzo_sync_id_solver_bicgstab_loop_25,
@@ -99,8 +101,7 @@ enum enzo_sync_id {
   enzo_sync_id_solver_mg0_post,
   enzo_sync_id_solver_mg0_pre,
   enzo_sync_id_solver_jacobi_1,
-  enzo_sync_id_solver_jacobi_2,
-  enzo_sync_id_method_cen_ostriker
+  enzo_sync_id_solver_jacobi_2
 };
   
 //----------------------------------------------------------------------

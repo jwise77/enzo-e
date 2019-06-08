@@ -268,7 +268,7 @@ Solver * EnzoProblem::create_solver_
 
   Solver * solver = NULL;
   
-  int rank = config->mesh_root_rank;
+  int rank = cello::rank();
 
   // Set solve type if not default "on_leaves" (solve_leaf)
 
@@ -479,12 +479,12 @@ Method * EnzoProblem::create_method_
   } else if (name == "star_maker_co") {
     
     method = new EnzoMethodStarMakerCenOstriker
-      (field_descr, enzo_config);
+      (enzo_config);
     
   } else if (name == "ray_tracer") {
     
     method = new EnzoMethodRayTracer
-      (field_descr, particle_descr, enzo_config);
+      (enzo_config);
 
   } else if (name == "turbulence") {
     

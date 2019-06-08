@@ -17,9 +17,7 @@ class EnzoMethodRayTracer : public Method {
 public: // interface
 
   /// Create a new EnzoMethodRayTracer object
-  EnzoMethodRayTracer(const FieldDescr * field_descr,
-		      const ParticleDescr * particle_descr, 
-		      EnzoConfig * enzo_config);
+  EnzoMethodRayTracer(const EnzoConfig * enzo_config);
 
   /// Charm++ PUP::able declarations
   PUPable_decl(EnzoMethodRayTracer);
