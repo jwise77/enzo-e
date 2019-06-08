@@ -235,17 +235,13 @@ public: // interface
       solver_coarse_level(),
       solver_is_unigrid(),
       // EnzoStopping
-<<<<<<< HEAD
       stopping_redshift(),
       // EnzoMethodStarMakerCenOstriker
       star_maker_co_density_threshold(),
       star_maker_co_efficiency(),
       // EnzoMethodRayTracer
       rays_per_cell(5.1)
-=======
-      stopping_redshift()
 
->>>>>>> b11b067e8378449b7afffb4dbee86706b4d287e8
   {
     for (int axis=0; axis<3; axis++) {
       initial_sedov_array[axis] = 0;
@@ -472,26 +468,13 @@ public: // attributes
   /// Stop at specified redshift for cosmology
   double                     stopping_redshift;
 
-<<<<<<< HEAD
- 
-#ifdef CONFIG_USE_GRACKLE
-
-  /// EnzoMethodGrackle
-
-  code_units      method_grackle_units;
-  chemistry_data  method_grackle_chemistry;
-
-#endif /* CONFIG_USE_GRACKLE */
-
-  // EnzoMethodStarMakerCenOstriker
+   // EnzoMethodStarMakerCenOstriker
   double star_maker_co_density_threshold;
   double star_maker_co_efficiency;
 
   // Ray tracer
   float rays_per_cell;
 
-=======
->>>>>>> b11b067e8378449b7afffb4dbee86706b4d287e8
 };
 
 extern EnzoConfig g_enzo_config;

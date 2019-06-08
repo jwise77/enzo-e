@@ -147,7 +147,6 @@ EnzoConfig::EnzoConfig() throw ()
   solver_local(),
   solver_coarse_level(),
   solver_is_unigrid(),
-<<<<<<< HEAD
   stopping_redshift(),
  
   // EnzoMethodStarMakerCenOstriker
@@ -155,9 +154,6 @@ EnzoConfig::EnzoConfig() throw ()
   star_maker_co_efficiency(0.10),
   // EnzoMethodRayTracer
   rays_per_cell(5.1)
-=======
-  stopping_redshift()
->>>>>>> b11b067e8378449b7afffb4dbee86706b4d287e8
 
 {
   for (int i=0; i<3; i++) {
