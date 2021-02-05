@@ -6,14 +6,14 @@
 /// @brief    Implementation of the ItNeighbor class
 
 #include "mesh.hpp"
-
+// #define DEBUG_IT_NEIGHBOR
 //----------------------------------------------------------------------
 
 ItNeighbor::ItNeighbor
 (
  Block * block,
  int min_face_rank,
- bool periodic[3][2],
+ bool periodic[3],
  int n3[3],
  Index index,
  int neighbor_type,
@@ -36,9 +36,7 @@ ItNeighbor::ItNeighbor
   reset();
   for (int axis=0; axis<3; axis++) {
     n3_[axis] = n3[axis];
-    for (int face=0; face<2; face++) {
-      periodic_[axis][face] = periodic[axis][face];
-    }
+    periodic_[axis] = periodic[axis];
   }
 }
 
@@ -55,7 +53,10 @@ bool ItNeighbor::next_ ()
   do {
     increment_();
   } while ( ! valid_() );
-
+#ifdef DEBUG_IT_NEIGHBOR  
+  CkPrintf ("DEBUG_IT_NEIGHBOR %s  %d %d %d  %d\n",
+	    block_->name().c_str(),of3_[0],of3_[1],of3_[2],face_level());
+#endif    
   return (! is_reset()) ;
 }
 
@@ -83,18 +84,18 @@ Index ItNeighbor::index() const
 
 void ItNeighbor::face_(int of3[3]) const
 {
-  of3[0] = (rank_ > 0) ? of3_[0] : 0;
-  of3[1] = (rank_ > 1) ? of3_[1] : 0;
-  of3[2] = (rank_ > 2) ? of3_[2] : 0;
+  of3[0] = (rank_ >= 1) ? of3_[0] : 0;
+  of3[1] = (rank_ >= 2) ? of3_[1] : 0;
+  of3[2] = (rank_ >= 3) ? of3_[2] : 0;
 } 
 
 //----------------------------------------------------------------------
 
 void ItNeighbor::child(int ic3[3]) const
 {
-  ic3[0] = (rank_ > 0) ? ic3_[0] : 0;
-  ic3[1] = (rank_ > 1) ? ic3_[1] : 0;
-  ic3[2] = (rank_ > 2) ? ic3_[2] : 0;
+  ic3[0] = (rank_ >= 1) ? ic3_[0] : 0;
+  ic3[1] = (rank_ >= 2) ? ic3_[1] : 0;
+  ic3[2] = (rank_ >= 3) ? ic3_[2] : 0;
   if ( ic3_[0]== -2) {
     ic3[0] = 0;
     ic3[1] = 0;
@@ -152,13 +153,13 @@ void ItNeighbor::increment_()
 	next_child_();
     } 
     if (is_reset_child_()) {
-      if (rank_ > 0 && of3_[0] < 1) { ++of3_[0]; }
+      if (rank_ >= 1 && of3_[0] < 1) { ++of3_[0]; }
       else {
 	of3_[0] = -1;
-	if (rank_ > 1 && of3_[1] < 1) { ++of3_[1]; }
+	if (rank_ >= 2 && of3_[1] < 1) { ++of3_[1]; }
 	else {
 	  of3_[1] = -1;
-	  if (rank_ > 2 && of3_[2] < 1) { ++of3_[2]; }
+	  if (rank_ >= 3 && of3_[2] < 1) { ++of3_[2]; }
 	  else reset();
 	}
       }
@@ -173,13 +174,13 @@ void ItNeighbor::next_child_()
   if (is_reset_child_()) {
     set_first_child_();
   } else {
-    if (rank_ > 0 && ic3_[0] < 1) { ++ic3_[0]; }
+    if (rank_ >= 1 && ic3_[0] < 1) { ++ic3_[0]; }
     else {
       ic3_[0] = 0;
-      if (rank_ > 1 && ic3_[1] < 1) { ++ic3_[1]; }
+      if (rank_ >= 2 && ic3_[1] < 1) { ++ic3_[1]; }
       else {
 	ic3_[1] = 0;
-	if (rank_ > 2 && ic3_[2] < 1) { ++ic3_[2]; }
+	if (rank_ >= 3 && ic3_[2] < 1) { ++ic3_[2]; }
 	else reset_child_();
       }
     }
@@ -190,9 +191,9 @@ void ItNeighbor::next_child_()
 
 void ItNeighbor::set_first_() 
 {
-  of3_[0] = rank_ > 0 ? -1 : 0;
-  of3_[1] = rank_ > 1 ? -1 : 0;
-  of3_[2] = rank_ > 2 ? -1 : 0;
+  of3_[0] = (rank_ >= 1) ? -1 : 0;
+  of3_[1] = (rank_ >= 2) ? -1 : 0;
+  of3_[2] = (rank_ >= 3) ? -1 : 0;
 }
 
 //----------------------------------------------------------------------
@@ -214,7 +215,7 @@ bool ItNeighbor::valid_()
   // Check that face rank is in range
 
   int face_rank = rank_;
-  for (int i=0; i<rank_; i++) face_rank -= std::abs(of3_[i]);
+  for (int axis=0; axis<rank_; axis++) face_rank -= std::abs(of3_[axis]);
 
   const bool in_range = 
     (min_face_rank_ <= face_rank && face_rank < rank_);
@@ -227,21 +228,17 @@ bool ItNeighbor::valid_()
       (! index().is_in_same_subtree(index_,min_level_,root_level_))) {
       return false;
   }
-  
+
   // Return false if on boundary and not periodic
 
-  if (index_.is_on_boundary(of3_,n3_)) {
-
-    for (int axis=0; axis<rank_; axis++) {
-
-      const bool is_lower_face     = (of3_[axis] == -1);
-      const bool is_upper_face     = (of3_[axis] == +1);
-      const bool is_lower_periodic = periodic_[axis][0];
-      const bool is_upper_periodic = periodic_[axis][1];
-
-      if (is_lower_face && (! is_lower_periodic) ) return false;
-      if (is_upper_face && (! is_upper_periodic) ) return false;
-
+  for (int axis=0; axis<rank_; axis++) {
+    for (int face=0; face < 2; face++) {
+      const bool is_on_boundary =
+	index_.is_on_boundary(axis,of3_[axis],n3_[axis]);
+      const bool is_face =
+	(face==0 && of3_[axis] == -1) || (face==1 && of3_[axis] == 1);
+      const bool is_periodic = periodic_[axis];
+      if ( (! is_periodic) && is_on_boundary && is_face ) return false;
     }    
   }
 
@@ -265,36 +262,26 @@ bool ItNeighbor::valid_()
 
     bool valid = true;
 
-    if (rank_ >= 1 && if3[0] == -1 && ic3_[0] != 0) valid = false;
-    if (rank_ >= 1 && if3[0] ==  1 && ic3_[0] != 1) valid = false;
-    if (rank_ >= 2 && if3[1] == -1 && ic3_[1] != 0) valid = false;
-    if (rank_ >= 2 && if3[1] ==  1 && ic3_[1] != 1) valid = false;
-    if (rank_ >= 3 && if3[2] == -1 && ic3_[2] != 0) valid = false;
-    if (rank_ >= 3 && if3[2] ==  1 && ic3_[2] != 1) valid = false;
+    for (int axis=0; axis<rank_; axis++) {
+      if (if3[axis] == -1 && ic3_[axis] != 0) valid = false;
+      if (if3[axis] ==  1 && ic3_[axis] != 1) valid = false;
+      if (valid == false) return false;
+    }
 
-    if (valid == false) return false;
+  } else if (face_level() < level_) {
 
-  }
-
-  // Skip coarse oblique neighbors
-
-  if (face_level() < level_) {
-
-    // Skip face if neighbor is coarser and not same as parent.
+    // Skip coarse oblique neighbors
 
     int ic3[3] = {0,0,0};
     index_.child (level_,&ic3[0],&ic3[1],&ic3[2]);
 
     bool valid = true;
 
-    if  (rank_ >= 1 && of3_[0] == +1 && ic3[0] == 0) valid = false;
-    if  (rank_ >= 1 && of3_[0] == -1 && ic3[0] == 1) valid = false;
-    if  (rank_ >= 2 && of3_[1] == +1 && ic3[1] == 0) valid = false;
-    if  (rank_ >= 2 && of3_[1] == -1 && ic3[1] == 1) valid = false;
-    if  (rank_ >= 3 && of3_[2] == +1 && ic3[2] == 0) valid = false;
-    if  (rank_ >= 3 && of3_[2] == -1 && ic3[2] == 1) valid = false;
-
-    if (valid == false) return false;
+    for (int axis=0; axis<rank_; axis++) {
+      if  (of3_[axis] == +1 && ic3[axis] == 0) valid = false;
+      if  (of3_[axis] == -1 && ic3[axis] == 1) valid = false;
+      if (valid == false) return false;
+    }
 
   }
 

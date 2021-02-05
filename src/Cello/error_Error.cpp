@@ -8,10 +8,11 @@
 #include "cello.hpp"
 
 #include "error.hpp"
+#include "test.hpp"
 
 //----------------------------------------------------------------------
 
-extern void m2_
+extern void cello::message
 (
  FILE *       fp,
  const char * type,
@@ -61,12 +62,14 @@ extern void m2_
   if (strcmp(type,"ERROR") == 0)
     monitor->write(fp,"","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
+  if (strcmp(type,"ERROR") == 0)
+    unit_assert(false);
   fflush (fp);
 }
 
 //----------------------------------------------------------------------
 
-void t_()
+void cello::error()
 {
   const int buffer_size = 64;
 
@@ -77,7 +80,8 @@ void t_()
   char ** symbols = backtrace_symbols(buffer,num_symbols);
 
   for (int i=0; i<num_symbols; i++) {
-    m2_(stderr,"EXIT","",0,"",symbols[i]);
+    cello::message(stderr,"EXIT","",0,"",symbols[i]);
   }
   CmiAbort("EXITING");
+  exit(1); 
 }

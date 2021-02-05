@@ -50,37 +50,42 @@ const char * phase_name[] = {
 //----------------------------------------------------------------------
 
 Block::Block ( MsgRefine * msg )
-  :
-  data_(NULL),
-  child_data_(NULL),
-  level_next_(0),
-  cycle_(0),
-  time_(0.0),
-  dt_(0.0),
-  stop_(false),
-  index_initial_(0),
-  children_(),
-  sync_coarsen_(),
-  sync_count_(),
-  sync_max_(),
-  face_level_curr_(),
-  face_level_next_(),
-  child_face_level_curr_(),
-  child_face_level_next_(),
-  count_coarsen_(0),
-  adapt_step_(0),
-  adapt_(adapt_unknown),
-  coarsened_(false),
-  delete_(false),
-  is_leaf_(true),
-  age_(0),
-  face_level_last_(),
-  name_(""),
-  index_method_(-1),
-  index_solver_(),
-  refresh_()
+  : CBase_Block(),
+    data_(NULL),
+    child_data_(NULL),
+    level_next_(0),
+    cycle_(0),
+    time_(0.0),
+    dt_(0.0),
+    stop_(false),
+    index_initial_(0),
+    children_(),
+    sync_coarsen_(),
+    sync_count_(),
+    sync_max_(),
+    face_level_curr_(),
+    face_level_next_(),
+    child_face_level_curr_(),
+    child_face_level_next_(),
+    count_coarsen_(0),
+    adapt_step_(0),
+    adapt_(adapt_unknown),
+    coarsened_(false),
+    delete_(false),
+    is_leaf_(true),
+    age_(0),
+    face_level_last_(),
+    name_(""),
+    index_method_(-1),
+    index_solver_(),
+    refresh_()
 {
   performance_start_(perf_block);
+#ifdef DEBUG_NEW_REFRESH  
+  CkPrintf ("Block(msg)\n"); fflush(stdout);
+#endif  
+  init_new_refresh_();
+
   usesAtSync = true;
   init (msg->index_,
 	msg->nx_, msg->ny_, msg->nz_,
@@ -100,53 +105,61 @@ Block::Block ( MsgRefine * msg )
 
   bool is_first_cycle = (cycle_ == cello::config()->initial_cycle);
 
-  if (is_first_cycle) {
-    apply_initial_();
-  } else {
-    msg->update(data());
-  }
-
-  delete msg;
-
   index_.array(array_,array_+1,array_+2);
 
+
+  if (! is_first_cycle) {
+    msg->update(data());
+    delete msg;
+  } else {
+    delete msg;
+    apply_initial_();
+  }
+
   performance_stop_(perf_block);
+
 
 }
 
 //----------------------------------------------------------------------
 
 Block::Block ( process_type ip_source )
-  :
-  data_(NULL),
-  child_data_(NULL),
-  level_next_(0),
-  cycle_(0),
-  time_(0.0),
-  dt_(0.0),
-  stop_(false),
-  index_initial_(0),
-  children_(),
-  sync_coarsen_(),
-  sync_count_(),
-  sync_max_(),
-  face_level_curr_(),
-  face_level_next_(),
-  child_face_level_curr_(),
-  child_face_level_next_(),
-  count_coarsen_(0),
-  adapt_step_(0),
-  adapt_(adapt_unknown),
-  coarsened_(false),
-  delete_(false),
-  is_leaf_(true),
-  age_(0),
-  face_level_last_(),
-  name_(""),
-  index_method_(-1),
-  index_solver_(),
-  refresh_()
+  : CBase_Block(),
+    data_(NULL),
+    child_data_(NULL),
+    level_next_(0),
+    cycle_(0),
+    time_(0.0),
+    dt_(0.0),
+    stop_(false),
+    index_initial_(0),
+    children_(),
+    sync_coarsen_(),
+    sync_count_(),
+    sync_max_(),
+    face_level_curr_(),
+    face_level_next_(),
+    child_face_level_curr_(),
+    child_face_level_next_(),
+    count_coarsen_(0),
+    adapt_step_(0),
+    adapt_(adapt_unknown),
+    coarsened_(false),
+    delete_(false),
+    is_leaf_(true),
+    age_(0),
+    face_level_last_(),
+    name_(""),
+    index_method_(-1),
+    index_solver_(),
+    refresh_()
 {
+
+#ifdef DEBUG_NEW_REFRESH  
+  CkPrintf ("Block(%d)\n",ip_source); fflush(stdout);
+#endif  
+  init_new_refresh_();
+
   usesAtSync = true;
 #ifdef TRACE_BLOCK
   {
@@ -192,12 +205,13 @@ void Block::p_set_msg_refine(MsgRefine * msg)
 
   bool is_first_cycle =  (cycle_ == cello::config()->initial_cycle);
 
-  if (is_first_cycle) {
-    apply_initial_();
-  } else {
+  if (! is_first_cycle) {
     msg->update(data());
-  }
-  delete msg;
+    delete msg;
+  } else {
+    delete msg;
+    apply_initial_();
+  } 
   
   performance_stop_(perf_block);
 
@@ -263,10 +277,8 @@ void Block::init
 
   set_state (cycle,time,dt,stop_);
 
-  const int rank = cello::rank();
-  
-  sync_coarsen_.set_stop(NUM_CHILDREN(rank));
   sync_coarsen_.reset();
+  sync_coarsen_.set_stop(cello::num_children());
 
   // Initialize neighbor face levels
 
@@ -275,14 +287,14 @@ void Block::init
   if (num_face_level == 0) {
 
     face_level_curr_.resize(27);
-    child_face_level_curr_.resize(NUM_CHILDREN(rank)*27);
+    child_face_level_curr_.resize(cello::num_children()*27);
 
     for (int i=0; i<27; i++) face_level_curr_[i] = 0;
 
   } else {
 
     face_level_curr_.resize(num_face_level);
-    child_face_level_curr_.resize(NUM_CHILDREN(rank)*num_face_level);
+    child_face_level_curr_.resize(cello::num_children()*num_face_level);
 
     for (int i=0; i<num_face_level; i++) face_level_curr_[i] = face_level[i];
 
@@ -307,7 +319,7 @@ void Block::init
   if (level > 0) index_.child(level,ic3,ic3+1,ic3+2);
 
 #ifdef DEBUG_NEW_REFRESH
-  CkPrintf ("%p narray = %d\n",this,narray);
+  CkPrintf ("%p narray = %d\n",(void*)this,narray);
 #endif
   if (narray != 0) {
 
@@ -320,7 +332,8 @@ void Block::init
     FieldFace * field_face = create_face
       (if3, ic3, lg3, refresh_fine, refresh, true);
 #ifdef DEBUG_FIELD_FACE  
-  CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",CkMyPe(),__FILE__,__LINE__,field_face);
+  CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",
+            CkMyPe(),__FILE__,__LINE__,(void*)field_face);
 #endif
 
     // Copy refined field data
@@ -343,7 +356,8 @@ void Block::init
 
   }
 
-  setMigratable(true);
+  // Do not migrate the root Block (0,0,0) level (0)
+  setMigratable(! index_.is_root());
 
   DEBUG_FACES("Block()");
 
@@ -425,7 +439,8 @@ void Block::pup(PUP::er &p)
     Simulation * simulation = cello::simulation();
     if (simulation != NULL) simulation->data_insert_block(this);    
   }
-  
+  p | new_refresh_sync_list_;
+  //  p | new_refresh_msg_list_;
 }
 
 //----------------------------------------------------------------------
@@ -439,7 +454,7 @@ ItFace Block::it_face
   int rank = cello::rank();
   int n3[3];
   size_array(n3,n3+1,n3+2);
-  bool periodic[3][2];
+  bool periodic[3];
   periodicity(periodic);
   return ItFace (rank,min_face_rank,periodic,n3,index,ic3,if3);
 }
@@ -452,7 +467,7 @@ ItNeighbor Block::it_neighbor (int min_face_rank, Index index,
 {
   int n3[3];
   size_array(&n3[0],&n3[1],&n3[2]);
-  bool periodic[3][2];
+  bool periodic[3];
   periodicity(periodic);
 
   return ItNeighbor
@@ -480,18 +495,16 @@ Solver * Block::solver () throw ()
 
 //----------------------------------------------------------------------
 
-void Block::periodicity (bool p32[3][2]) const
+void Block::periodicity (bool p3[3]) const
 {
   for (int axis=0; axis<3; axis++) {
-    for (int face=0; face<2; face++) {
-      p32[axis][face] = false;
-    }
+    p3[axis] = false;
   }
   int index_boundary = 0;
   Problem * problem = cello::problem();
   Boundary * boundary;
   while ( (boundary = problem->boundary(index_boundary++)) ) {
-    boundary->periodicity(p32);
+    boundary->periodicity(p3);
   }
 }
 
@@ -500,8 +513,8 @@ void Block::periodicity (bool p32[3][2]) const
 void Block::print () const
   
 {
-  CkPrintf ("data_ = %p\n",data_);
-  CkPrintf ("child_data_ = %p\n",child_data_);
+  CkPrintf ("data_ = %p\n",(void*)data_);
+  CkPrintf ("child_data_ = %p\n",(void*)child_data_);
   int v3[3];index().values(v3);
   CkPrintf ("index_ = %0x %0x %0x\n",v3[0],v3[1],v3[2]);
   CkPrintf ("level_next_ = %d\n",level_next_);
@@ -510,11 +523,11 @@ void Block::print () const
   CkPrintf ("dt_ = %f\n",dt_);
   CkPrintf ("stop_ = %d\n",stop_);
   CkPrintf ("index_initial_ = %d\n",index_initial_);
-  CkPrintf ("children_.size() = %d\n",children_.size());
-  CkPrintf ("face_level_curr_.size() = %d\n",face_level_curr_.size());
-  CkPrintf ("face_level_next_.size() = %d\n",face_level_next_.size());
-  CkPrintf ("child_face_level_curr_.size() = %d\n",child_face_level_curr_.size());
-  CkPrintf ("child_face_level_next_.size() = %d\n",child_face_level_next_.size());
+  CkPrintf ("children_.size() = %lu\n",children_.size());
+  CkPrintf ("face_level_curr_.size() = %lu\n",face_level_curr_.size());
+  CkPrintf ("face_level_next_.size() = %lu\n",face_level_next_.size());
+  CkPrintf ("child_face_level_curr_.size() = %lu\n",child_face_level_curr_.size());
+  CkPrintf ("child_face_level_next_.size() = %lu\n",child_face_level_next_.size());
   CkPrintf ("count_coarsen_ = %d\n",count_coarsen_);
   CkPrintf ("adapt_step_ = %d\n",adapt_step_);
   CkPrintf ("adapt_ = %d\n",adapt_);
@@ -522,7 +535,7 @@ void Block::print () const
   CkPrintf ("delete_ = %d\n",delete_);
   CkPrintf ("is_leaf_ = %d\n",is_leaf_);
   CkPrintf ("age_ = %d\n",age_);
-  CkPrintf ("face_level_last_.size() = %d\n",face_level_last_.size());
+  CkPrintf ("face_level_last_.size() = %lu\n",face_level_last_.size());
   CkPrintf ("name_ = %s\n",name_.c_str());
   CkPrintf ("index_method_ = %d\n",index_method_);
   //  CkPrintf ("index_solver_ = %d\n",index_solver());
@@ -551,7 +564,7 @@ void Block::compute_derived(const std::vector< std::string>& field_list
     //   should contruct list of fields from full list
     //   rather than copying this loop twice...
     if (field_list.size() > 0){
-      for (int i = 0; i < field_list.size(); i++){
+      for (auto i = 0; i < field_list.size(); i++){
         std::string name = field_list[i];
         if (field.groups()->is_in(name,"derived")){
           Compute * compute = problem->create_compute(name,
@@ -638,7 +651,8 @@ Block::~Block()
     FieldFace * field_face = create_face
       ( if3,ic3,lg3,refresh_coarse,refresh,true);
 #ifdef DEBUG_FIELD_FACE  
-    CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",CkMyPe(),__FILE__,__LINE__,field_face);
+    CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",
+              CkMyPe(),__FILE__,__LINE__,(void*)field_face);
 #endif
 
     field_face->face_to_array(data()->field(),&n,&array);
@@ -684,7 +698,8 @@ void Block::p_refresh_child
   FieldFace * field_face = create_face
     (if3, ic3, lg3, refresh_coarse,refresh,true);
 #ifdef DEBUG_FIELD_FACE  
-  CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",CkMyPe(),__FILE__,__LINE__,field_face);
+  CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",
+            CkMyPe(),__FILE__,__LINE__,(void*)field_face);
 #endif
   
   field_face -> array_to_face (buffer, data()->field());
@@ -694,6 +709,44 @@ void Block::p_refresh_child
 }
 
 //----------------------------------------------------------------------
+
+Block::Block ()
+  : CBase_Block(),
+    data_(NULL),
+    child_data_(NULL),
+    level_next_(0),
+    cycle_(0),
+    time_(0.0),
+    dt_(0.0),
+    stop_(false),
+    index_initial_(0),
+    children_(),
+    sync_coarsen_(),
+    sync_count_(),
+    sync_max_(),
+    face_level_curr_(),
+    face_level_next_(),
+    child_face_level_curr_(),
+    child_face_level_next_(),
+    count_coarsen_(0),
+    adapt_step_(0),
+    adapt_(0),
+    coarsened_(false),
+    delete_(false),
+    is_leaf_(true),
+    age_(0),
+    face_level_last_(),
+    name_(""),
+    index_method_(-1),
+    index_solver_(),
+    refresh_()
+{
+
+  init_new_refresh_();
+  
+  for (int i=0; i<3; i++) array_[i]=0;
+}
+
 
 Block::Block (CkMigrateMessage *m)
   : CBase_Block(m),
@@ -725,14 +778,37 @@ Block::Block (CkMigrateMessage *m)
     index_method_(-1),
     index_solver_(),
     refresh_()
+    
 {
+
+#ifdef DEBUG_NEW_REFRESH  
+  CkPrintf ("Block(m)\n"); fflush(stdout);
+#endif  
+  init_new_refresh_();
   
 #ifdef TRACE_BLOCK
   CkPrintf ("TRACE_BLOCK Block(CkMigrateMessage*)\n");
   fflush(stdout);
 #endif  
   
-};
+}
+
+//----------------------------------------------------------------------
+
+void Block::init_new_refresh_()
+{
+  const int count = cello::simulation()->new_refresh_count();
+#ifdef DEBUG_NEW_REFRESH
+  CkPrintf ("DEBUG_NEW_REFRESH init_new_refresh count = %d\n",
+	    count);
+  fflush(stdout);
+#endif  
+  new_refresh_sync_list_.resize(count);
+  new_refresh_msg_list_.resize(count);
+  for (int i=0; i<count; i++) {
+    new_refresh_sync_list_[i].reset();
+  }
+}
 
 //----------------------------------------------------------------------
 
@@ -887,7 +963,8 @@ FieldFace * Block::create_face
 {
   FieldFace  * field_face = new FieldFace;
 #ifdef DEBUG_FIELD_FACE  
-  CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",CkMyPe(),__FILE__,__LINE__,field_face);
+  CkPrintf ("%d %s:%d DEBUG_FIELD_FACE creating %p\n",
+            CkMyPe(),__FILE__,__LINE__,(void*)field_face);
 #endif
 
   field_face -> set_refresh_type (refresh_type);
@@ -1052,7 +1129,7 @@ void Block::check_leaf_()
        (! is_leaf() && children_.size() == 0))) {
 
     WARNING3("Block::check_leaf_()",
-	     "%s: is_leaf() == %s && children_.size() == %d",
+	     "%s: is_leaf() == %s && children_.size() == %lu",
 	     name_.c_str(), is_leaf()?"true":"false",
 	     children_.size());
   }
@@ -1075,9 +1152,7 @@ void Block::check_delete_()
 
 void Block::debug_faces_(const char * mesg)
 {
-#ifndef DEBUG_ADAPT
-  return;
-#endif
+#ifdef DEBUG_ADAPT
 
 #ifdef CELLO_DEBUG
   FILE * fp_debug = simulation()->fp_debug();
@@ -1144,5 +1219,6 @@ void Block::debug_faces_(const char * mesg)
 
     }
   }
+#endif
 }
 
