@@ -13,6 +13,7 @@ log.build
 *out.scons*
 *.pyc
 .scon*
+.vscode
 template_defs.de*.h
 test/CHARM_BUILD
 test/CHARM_VERSION
