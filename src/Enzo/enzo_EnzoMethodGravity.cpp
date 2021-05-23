@@ -170,9 +170,6 @@ void EnzoMethodGravity::compute(Block * block) throw()
 
 void EnzoBlock::p_method_gravity_continue()
 {
-
-  TRACE_METHOD("r_method_gravity_continue()",this);
-
   // So do refresh with barrier synch (note barrier instead of
   // neighbor synchronization otherwise will conflict with Method
   // refresh ("Charm++ fatal error: mis-matched client callbacks in

@@ -63,7 +63,6 @@ enum {
 enum enzo_sync_id {
   enzo_sync_id_cg = sync_id_last,
   enzo_sync_id_comoving_expansion,
-  enzo_sync_id_method_cen_ostriker,
   enzo_sync_id_method_background_acceleration,
   enzo_sync_id_method_cosmology,
   enzo_sync_id_method_feedback,
@@ -241,7 +240,6 @@ extern "C" {
 #include "enzo_EnzoMethodPpm.hpp"
 #include "enzo_EnzoMethodPpml.hpp"
 #include "enzo_EnzoMethodTurbulence.hpp"
-#include "enzo_EnzoMethodStarMakerCenOstriker.hpp"
 #include "enzo_EnzoMethodRayTracer.hpp"
 #include "enzo_EnzoMethodStarMaker.hpp"
 #include "enzo_EnzoMethodStarMakerStochasticSF.hpp"

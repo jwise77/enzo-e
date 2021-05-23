@@ -583,11 +583,6 @@ Method * EnzoProblem::create_method_
 
 #endif /* CONFIG_USE_GRACKLE */
 
-  } else if (name == "star_maker_co") {
-    
-    method = new EnzoMethodStarMakerCenOstriker
-      (enzo_config);
-    
   } else if (name == "ray_tracer") {
     
     method = new EnzoMethodRayTracer

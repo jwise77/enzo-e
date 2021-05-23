@@ -5,6 +5,9 @@
     ###           to form stars.
     ###    Date : 2017-06-08
     ###  Author : Andrew Emerick (emerick@astro.columbia.edu)
+    ###
+    ###  May 2021 Note: Not updated/tested in accordance with the new
+    ###  star formation routines
 
 
     Domain {

@@ -372,9 +372,6 @@ public: // interface
       solver_is_unigrid(),
       // EnzoStopping
       stopping_redshift(),
-      // EnzoMethodStarMakerCenOstriker
-      star_maker_co_density_threshold(),
-      star_maker_co_efficiency(),
       // EnzoMethodRayTracer
       rays_per_cell(5.1)
 
@@ -767,10 +764,6 @@ public: // attributes
 
   /// Stop at specified redshift for cosmology
   double                     stopping_redshift;
-
-   // EnzoMethodStarMakerCenOstriker
-  double star_maker_co_density_threshold;
-  double star_maker_co_efficiency;
 
   // Ray tracer
   float rays_per_cell;

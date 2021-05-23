@@ -28,12 +28,13 @@ EnzoMethodRayTracer::EnzoMethodRayTracer
 {
   // Initialize default Refresh object
 
-  const int ir = add_refresh(4,0,neighbor_leaf,sync_barrier,
-			     enzo_sync_id_method_ray_tracer);
-  refresh(ir)->add_all_particles();
-  refresh(ir)->add_all_fields();
+  cello::simulation()->new_refresh_set_name(ir_post_, name());
+  Refresh * refresh = cello::refresh(ir_post_);
 
-  // Parameters initialized in EnzoBlock::initialize()
+  // For now, refresh all particles and fields
+  // In the future, trim to the essential data
+  refresh->add_all_particles();
+  refresh->add_all_fields();
   
 }
 
