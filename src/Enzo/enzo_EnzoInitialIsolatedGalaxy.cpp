@@ -449,15 +449,22 @@ void EnzoInitialIsolatedGalaxy::InitializeExponentialGasDistribution(Block * blo
 
           double vcirc = 0.0;
           if (this->analytic_velocity_){
-//            double rhodm = enzo_config->method_background_acceleration_DM_density;
+            double rhodm = enzo_config->method_background_acceleration_DM_density;
             double rcore = enzo_config->method_background_acceleration_core_radius;
             double rvir  = enzo_config->method_background_acceleration_DM_mass_radius;
 
             double Mvir  = enzo_config->method_background_acceleration_DM_mass;
+            if (Mvir < 0) {
+              double xtemp = rvir / rcore;
+              double rtemp = rcore * cello::kpc_cm;
+
+              Mvir = 4.0 * cello::pi / 3.0 * (std::pow(rtemp,3) * rhodm) * 3.0 * (std::log(1.0 + xtemp) - xtemp/(1.0+xtemp));
+            } else {
+              Mvir *= cello::mass_solar;
+            }
 
             rcore = rcore * cello::kpc_cm;
             rvir  = rvir  * cello::kpc_cm;
-            Mvir  = Mvir  * cello::mass_solar;
 
             double conc = rvir  / rcore;
             double   rx = r_cyl / rvir;
