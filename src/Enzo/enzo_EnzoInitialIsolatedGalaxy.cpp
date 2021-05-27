@@ -89,6 +89,7 @@ EnzoInitialIsolatedGalaxy::EnzoInitialIsolatedGalaxy
                                    enzo_units->density();
   this->gas_halo_radius_         = config->initial_IG_gas_halo_radius * cello::kpc_cm /
                                    enzo_units->length();
+  this->uniform_temperature_     = config->field_uniform_temperature;
 
   // on / off settings for IC
   this->use_gas_particles_       = config->initial_IG_use_gas_particles;
@@ -184,6 +185,7 @@ void EnzoInitialIsolatedGalaxy::pup (PUP::er &p)
   p | gas_halo_radius_;
 
   p | uniform_density_;
+  p | uniform_temperature_;
   p | dual_energy_;
   p | gamma_;
   p | mu_;
@@ -372,7 +374,7 @@ void EnzoInitialIsolatedGalaxy::InitializeExponentialGasDistribution(Block * blo
       (pow((this->scale_length_),2)*(this->scale_height_));
 
   double halo_gas_energy = this->gas_halo_temperature_ / this->mu_ / (this->gamma_ -1);
-
+  double igm_gas_energy = this->uniform_temperature_ / this->mu_ / (this->gamma_ -1);
   double disk_gas_energy = this->disk_temperature_ / this->mu_ / (this->gamma_ -1) ;
   
   // initialize fields to something
@@ -381,14 +383,14 @@ void EnzoInitialIsolatedGalaxy::InitializeExponentialGasDistribution(Block * blo
       for (int ix=0; ix<mx; ix++){
         int i = INDEX(ix,iy,iz,mx,my);
         d[i]   = this->uniform_density_;
-        te[i]  = halo_gas_energy;
+        te[i]  = igm_gas_energy;
         p[i]   = (this->gamma_ - 1.0) * te[i] * d[i];
 
         if(pot) pot[i] = 0.0;
 
         if (this->dual_energy_)
         {
-          ge[i] = halo_gas_energy;
+          ge[i] = igm_gas_energy;
         }
 
         for (int dim = 0; dim < 3; dim++){

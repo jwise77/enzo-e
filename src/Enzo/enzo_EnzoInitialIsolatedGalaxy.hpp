@@ -169,6 +169,7 @@ private: // attributes
 
   int dual_energy_;
   double uniform_density_;
+  double uniform_temperature_;
   double gamma_;
   double mu_;
   double tiny_number_;

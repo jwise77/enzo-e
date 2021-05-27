@@ -124,6 +124,7 @@ public: // interface
       ppm_mol_weight(0.0),
       field_gamma(0.0),
       field_uniform_density(1.0),
+      field_uniform_temperature(1.0),
       // Cosmology
       physics_cosmology(false),
       physics_cosmology_hubble_constant_now(0.0),
@@ -425,6 +426,7 @@ public: // attributes
 
   double                     field_gamma;
   double                     field_uniform_density;
+  double                     field_uniform_temperature;
 
   /// Cosmology
   bool                       physics_cosmology;

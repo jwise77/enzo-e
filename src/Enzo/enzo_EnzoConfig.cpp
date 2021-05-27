@@ -341,6 +341,7 @@ void EnzoConfig::pup (PUP::er &p)
 
   p | field_gamma;
   p | field_uniform_density;
+  p | field_uniform_temperature;
 
   p | physics_cosmology;
   p | physics_cosmology_hubble_constant_now;
@@ -767,6 +768,7 @@ void EnzoConfig::read(Parameters * p) throw()
 
   field_gamma = p->value_float ("Field:gamma",5.0/3.0);
   field_uniform_density = p->value_float ("Field:uniform_density",1.0);
+  field_uniform_temperature = p->value_float ("Field:uniform_temperature",1.0);
 
   // InitialInclinedWave initialization
 
