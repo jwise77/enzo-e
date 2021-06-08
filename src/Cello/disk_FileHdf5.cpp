@@ -279,7 +279,7 @@ void FileHdf5::data_create
 			data_prop_,
 			H5P_DEFAULT);
 #ifdef TRACE_DISK  
-  CkPrintf ("%d [%d] TRACE_DISK H5Dcreate(%d)\n",CkMyPe(),__LINE__,data_id_);
+  CkPrintf ("%d [%d] TRACE_DISK H5Dcreate(%d/%s)\n",CkMyPe(),__LINE__,data_id_,name.c_str());
   fflush(stdout);
 #endif  
 
@@ -353,7 +353,8 @@ void FileHdf5::data_write ( const void * buffer ) throw()
   // Write dataset to the file
 
 #ifdef TRACE_DISK  
-  CkPrintf ("%d [%d] TRACE_DISK H5Dwrite(%d)\n",CkMyPe(),__LINE__,data_id_);
+  CkPrintf ("%d [%d] TRACE_DISK H5Dwrite(%d)\n",CkMyPe(),__LINE__,data_id_, 
+    data_name_.c_str());
   fflush(stdout);
 #endif  
   int retval = 
@@ -563,7 +564,7 @@ void FileHdf5::group_open () throw()
 
   group_id_ = H5Gopen(file_id_, group_name_.c_str(),H5P_DEFAULT);
 #ifdef TRACE_DISK  
-  CkPrintf ("%d [%d] TRACE_DISK H5Gopen(%d)\n",CkMyPe(),__LINE__,group_id_);
+  CkPrintf ("%d [%d] TRACE_DISK H5Gopen(%d/%s)\n",CkMyPe(),__LINE__,group_id_, group_name_.c_str());
   fflush(stdout);
 #endif  
 
@@ -594,7 +595,7 @@ void FileHdf5::group_create () throw()
 
   group_id_ = H5Gopen(file_id_,group_full.c_str(),H5P_DEFAULT);
 #ifdef TRACE_DISK  
-  CkPrintf ("%d [%d] TRACE_DISK H5Gopen(%d)\n",CkMyPe(),__LINE__,group_id_);
+  CkPrintf ("%d [%d] TRACE_DISK H5Gopen(%d/%s)\n",CkMyPe(),__LINE__,group_id_,group_full.c_str());
   fflush(stdout);
 #endif  
 
@@ -640,14 +641,14 @@ void FileHdf5::group_create () throw()
     if (group_exists) {
       group_new = H5Gopen   (file_id_,group_full.c_str(), H5P_DEFAULT);
 #ifdef TRACE_DISK  
-      CkPrintf ("%d [%d] TRACE_DISK H5Gopen(%d)\n",CkMyPe(),__LINE__,group_new);
+      CkPrintf ("%d [%d] TRACE_DISK H5Gopen(%d/%s)\n",CkMyPe(),__LINE__,group_new,group_full.c_str());
   fflush(stdout);
 #endif  
     } else {
       group_new = H5Gcreate (file_id_,group_full.c_str(),
 			     H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 #ifdef TRACE_DISK  
-      CkPrintf ("%d [%d] TRACE_DISK H5Gcreate(%d)\n",CkMyPe(),__LINE__,group_new);
+      CkPrintf ("%d [%d] TRACE_DISK H5Gcreate(%d/%s)\n",CkMyPe(),__LINE__,group_new, group_full.c_str());
   fflush(stdout);
 #endif  
     }
@@ -655,7 +656,7 @@ void FileHdf5::group_create () throw()
     // Close parent group
 
 #ifdef TRACE_DISK  
-    CkPrintf ("%d [%d] TRACE_DISK H5Gclose(%d)\n",CkMyPe(),__LINE__,group_id_);
+    CkPrintf ("%d [%d] TRACE_DISK H5Gclose(%d/%s)\n",CkMyPe(),__LINE__,group_id_, group_full.c_str());
   fflush(stdout);
 #endif  
     H5Gclose (group_id_);
@@ -678,7 +679,7 @@ void FileHdf5::group_close () throw()
   if (is_group_open_) {
 
 #ifdef TRACE_DISK  
-    CkPrintf ("%d [%d] TRACE_DISK H5Gclose(%d)\n",CkMyPe(),__LINE__,group_id_);
+    CkPrintf ("%d [%d] TRACE_DISK H5Gclose(%d/%s)\n",CkMyPe(),__LINE__,group_id_, group_name_.c_str());
   fflush(stdout);
 #endif  
 
@@ -820,7 +821,7 @@ void FileHdf5::write_meta_
   // Write the attribute 
 
 #ifdef TRACE_DISK  
-  CkPrintf ("%d [%d] TRACE_DISK H5Awrite()\n",CkMyPe(),__LINE__);
+  CkPrintf ("%d [%d] TRACE_DISK H5Awrite(%s)\n",CkMyPe(),__LINE__, name.c_str());
   fflush(stdout);
 #endif  
   H5Awrite (meta_id, scalar_to_hdf5_(type), buffer);
@@ -832,7 +833,7 @@ void FileHdf5::write_meta_
   // Close the attribute
 
 #ifdef TRACE_DISK  
-  CkPrintf ("%d [%d] TRACE_DISK H5Aclose()\n",CkMyPe(),__LINE__);
+  CkPrintf ("%d [%d] TRACE_DISK H5Aclose(%s)\n",CkMyPe(),__LINE__, name.c_str());
   fflush(stdout);
 #endif  
   int retval = H5Aclose(meta_id);
