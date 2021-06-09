@@ -327,6 +327,7 @@ void EnzoInitialIsolatedGalaxy::InitializeExponentialGasDistribution(Block * blo
 
   // Block sizes (excluding ghost zones)
   int nx,ny,nz;
+  int rank = cello::rank();
   field.size(&nx,&ny,&nz);
 
   // Ghost zone depth (gx + gx total ghost zones in x dimension)
@@ -337,6 +338,7 @@ void EnzoInitialIsolatedGalaxy::InitializeExponentialGasDistribution(Block * blo
   int mx = nx + 2*gx;
   int my = ny + 2*gy;
   int mz = nz + 2*gz;
+  const int m = mx*my*mz;
 
   // Grab information about grid properties
   //     Cell min coords (xm,ym,zm)  - of min active zone cell (not ghost)
@@ -373,37 +375,22 @@ void EnzoInitialIsolatedGalaxy::InitializeExponentialGasDistribution(Block * blo
   double rho_zero = this->disk_mass_ * this->gas_fraction_ / (4.0 * cello::pi)/
       (pow((this->scale_length_),2)*(this->scale_height_));
 
-  double halo_gas_energy = this->gas_halo_temperature_ / this->mu_ / (this->gamma_ -1);
-  double igm_gas_energy = this->uniform_temperature_ / this->mu_ / (this->gamma_ -1);
-  double disk_gas_energy = this->disk_temperature_ / this->mu_ / (this->gamma_ -1) ;
+  double tconvert = 1.0 / (enzo_units->temperature() * this->mu_ * (this->gamma_-1));
+  double halo_gas_energy = this->gas_halo_temperature_ * tconvert;
+  double igm_gas_energy = this->uniform_temperature_ * tconvert;
+  double disk_gas_energy = this->disk_temperature_ * tconvert;
   
   // initialize fields to something
-  for (int iz=0; iz<mz; iz++){
-    for (int iy=0; iy<my; iy++){
-      for (int ix=0; ix<mx; ix++){
-        int i = INDEX(ix,iy,iz,mx,my);
-        d[i]   = this->uniform_density_;
-        te[i]  = igm_gas_energy;
-        p[i]   = (this->gamma_ - 1.0) * te[i] * d[i];
-
-        if(pot) pot[i] = 0.0;
-
-        if (this->dual_energy_)
-        {
-          ge[i] = igm_gas_energy;
-        }
-
-        for (int dim = 0; dim < 3; dim++){
-          a3[dim][i] = 0.0;
-          v3[dim][i] = 0.0;
-        }
-
-        if(metal) metal[i] = this->tiny_number_ * d[i];
-
-      }
-    }
-  } // end loop over all cells for background values
-
+  std::fill_n(d, m, this->uniform_density_);
+  std::fill_n(te, m, igm_gas_energy);
+  std::fill_n(p, m, igm_gas_energy * this->uniform_density_ * (this->gamma_ - 1.0));
+  if (pot) std::fill_n(pot, m, 0.0);
+  if (metal) std::fill_n(metal, m, this->tiny_number_ * this->uniform_density_);
+  if (this->dual_energy_) std::fill_n(ge, m, igm_gas_energy);
+  for (int dim; dim < rank; dim++) {
+    std::fill_n(a3[dim], m, 0.0);
+    std::fill_n(v3[dim], m, 0.0);
+  }
 
   for (int iz=0; iz<mz; iz++){
     // compute z coordinate of cell center
@@ -580,8 +567,9 @@ void EnzoInitialIsolatedGalaxy::InitializeGasFromParticles(Block * block){
   enzo_float * metal = field.is_field("metal_density") ?
                       (enzo_float *) field.values("metal_density") : NULL;
 
-  double disk_gas_energy = this->disk_temperature_ / this->mu_ / (this->gamma_ - 1);
-  double halo_gas_energy = this->gas_halo_temperature_ / this->mu_ / (this->gamma_ - 1);
+  double tconvert = 1.0 / (enzo_units->temperature() * this->mu_ * (this->gamma_-1));
+  double disk_gas_energy = this->disk_temperature_ * tconvert;
+  double halo_gas_energy = this->gas_halo_temperature_ * tconvert;
 
   // Initialize the full grid to either CGM properties or
   // IGM properties (if beyond virial radius)
