@@ -34,6 +34,7 @@ Currently the Enzo-e testing infrastructure tests:
    checkpoint
    collapse
    cosmology
+   fluxcorrect
    gravity
    heat
    helloworld
@@ -41,6 +42,7 @@ Currently the Enzo-e testing infrastructure tests:
    hydro
    initialmusic
    methods
+   mergestars
    output
    particle
    performance

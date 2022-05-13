@@ -28,36 +28,49 @@ Shorthand Terms
 We briefly define a few terms that are used throughout the
 documentation and codebase
 
-Integrable/Reconstructable Quantities
+Integration/Primitive Quantities
 -------------------------------------
 
 Throughout this guide and the relevant sections of the codebase, we
-refer to quantities as reconstructable (i.e. they are used for
-reconstructing left/right interface states) and integrable (i.e. the
-primary quantities that are evolved by the integrator). There is a
-high degree of overlap between these categories and the precise
-categorization depends on the equation of state. As of now all
-integrable quantities are "conserved" or "specific" (a quantity like
-velocity that when multiplied by density becomes conserved).
+categorize quantities as integration quantities and primitives.
 
-As an example, the categorization of the quantities for an ideal,
-adiabatic gas are:
+The integration quantities are the cell-centered quantities that
+Enzo-E, as a whole, uses to describe the state of the fluid. In other
+words, these are the hydro/MHD quantities that Enzo-E expects to be
+integrated from one time-step to the next. The integration quantities
+include all passive scalars in their "conserved" form (i.e. as
+densities).  All integration quantities can basically be
+subcategorized as either "conserved" or "specific" (a specific
+quantity like velocity that becomes conserved after multiplication by
+density). In cases using the dual energy formalism, we treat the
+specific internal energy as an integration quantity even though the
+internal energy density is not technically conserved (it requires
+source terms).
 
-  * density - reconstructable and integrable
+The primitive quantities follow the normal textbook definition. We use
+the primitives internally within the hydro/MHD solver for
+reconstruction. The primitives include all passive scalars in their
+"specific" form (i.e. as mass fractions). Note that some quantities
+(like density or velocity) are categorized as both an integration
+quantity and a primitive.
 
-  * velocity - reconstructable and integrable
+To provide a more concrete example, we categorize the quantities related
+to an ideal, adiabatic gas:
 
-  * pressure - only reconstructable
+  * density - integration and primitive
 
-  * (specific) total energy - only integrable
+  * velocity - integration and primitive
 
-  * magnetic field - reconstructable and integrable
+  * pressure - only primitive
 
-*Note: Both the reconstructable and integrable quantities are
-frequently referred to as primitives throughout the codebase as
-primitives. This is mostly historical and mainly refers to the fact
-that the collection of quantities are not all of the quantities are
-"conserved" (at least some subset of them are "specific").*
+  * (specific) total energy - only integration
+
+  * magnetic field - integration and primitive
+
+If using the dual energy formalism, we would categorize the (specific)
+internal energy as an integration quantity. As of now, there wouldn't
+be a primitive counterpart to the internal energy since it can be
+computed from the reconstructed density and pressure.
 
 stale depth
 -----------
@@ -147,13 +160,11 @@ the row for the "velocity" quantity registers the ``"velocity_x"``,
 
 At present, the registry currently provides operations:
 
-  * for building ``Grouping`` objects that contain registered quantity
-    fields.
-  * to access quantity properties registerred in ``FIELD_TABLE`` at
+  * to access quantity properties registered in ``FIELD_TABLE`` at
     runtime
-  * provide a list of known groups that can be used in the input file
+  * to provide a list of known groups that can be used in the input file
     to identify fields as passively advected scalars (as of now, the
-    only such group is ``"colour"``).
+    only such group is ``"color"``).
 
 ==============
 General Design
@@ -172,17 +183,15 @@ classes include:
 
   * ``EnzoEquationOfState`` - encapsulates many of the operations
     related to the fluid's equation of state (e.g. computing pressure,
-    converting reconstructable quantities to integrable quantities and
-    vice-versa)
+    converting the integration quantities or primitives)
 
   * ``EnzoReconstructor`` - encapsulates interpolation algorithms to
-    reconstruct left/right interface states of from cell-centered
-    values
+    reconstruct left/right interface states of cell-centered values
 
   * ``EnzoRiemann`` - encapsulates various Rimann Solver algorithms
 
-  * ``EnzoIntegrableUpdate`` - encapsulates the operation of updating
-    integrable quantities after a (partial) time-step.
+  * ``EnzoIntegrationQuanUpdate`` - encapsulates the operation of
+    updating integration quantities after a (partial) time-step.
 
   * ``EnzoBfieldMethod`` - encapsulates operations related to integrating
     magnetic fields that are not performed by the other operation classes.
@@ -191,27 +200,24 @@ classes include:
 Each of these operation classes are fairly modular (to allow for
 selective usage of the frame work components). However, all of the
 classes require that an instance of ``EnzoEquationOfState`` get's
-passed.
+passed. The operation classes are also provided with ``PUP`` methods
+to allow for easy serialization alongside the ``Method`` class that
+makes use of them.
 
 Each of the operation classes are designed to be configured upon
 initialization. The instances can then be used multiple times per
 time-step (along multiple dimensions if the operation is directional)
-and in other time-steps. The operation classes are also provided with
-``PUP`` methods to allow for easy migration alongside the ``Method``
-class that makes use them.
-
-For each operation class (other than ``EnzoEquationOfState``), the
-expected integrable or reconstructable quantities (other than passively
-advected scalars) are *registered* at construction.
-
-  * The names of all reconstructable quantites that get registered
-    in the construction of ``EnzoRiemann`` must share a name
-    with the registered quantities in ``FIELD_TABLE``.
-
-  * All registered integrable quantity names in the construction of
-    ``EnzoRiemann`` or ``EnzoIntegrableUpdate`` must be specified in
-    ``FIELD_TABLE`` as quantities that are actively advected in some
-    contexts.
+and in other time-steps. Lists (excluding passive scalars) of the
+expected primitives and integration keys are respectively
+*registered* during the construction of ``EnzoReconstructor`` and
+``EnzoIntegrationQuanUpdate``. These keys must each share a name
+with the registered quantities in ``FIELD_TABLE``. In contrast,
+configuration of ``EnzoRiemann``, is less flexible and instances
+actually specify the non-passive integration quantities and
+non-passive primitives that they require. This difference exists
+because the operations encapsulated by ``EnzoReconstructor`` and
+``EnzoIntegrationQuanUpdate`` can be applied to individual quantities
+in a far more independent manner.
 
 Because all fields storing passively advected scalars are not
 necessarily known when initializing a hydro/MHD integrator (i.e.
@@ -239,70 +245,108 @@ Overview
 The basic unit that get's operated on by these operation classes
 are instances of the ``EnzoEFltArrayMap`` class. As the name may
 suggest, these classes serve as a map/dictionary of instances of
-``EFlt3DArray``.
+``EFlt3DArray`` (or equivalently, instances of
+``CelloArray<enzo_float,3>``).
 
+This class provides some atypical features that are useful for our
+applications:
+
+  * All values have the same shape.
+
+  * All key-value pairs must be specified at construction. After construction:
+
+      * key-value pairs can't be inserted/deleted.
+
+      * the ``EFlt3DArray`` associated a with a key can't be overwritten with a
+        different ``EFlt3DArray``
+
+      * Of course, the elements of the contained ``EFlt3DArray`` can still be
+        modified.
+
+  * The user specifies the ordering of the keys at construction (this
+    facillitates several future optimizations)
+
+Among other things, these features let this class act like a dynamically
+configurable "struct of arrays".
+
+Some other noteworthy features/properties of this class include:
+
+  * this class provides a ``subarray_map`` method, that returns a new
+    map of subarrays based on CSlice arguments
+
+  * invoking the copy constructor of ``EnzoEFltArrayMap`` effectively
+    produces shallow copies. (This is a natural consequnce of the
+    ``CelloArray``\'s pointer semantics. The same would be true for
+    standard library containers holding ``CelloArray``\s)
+
+  * A ``const EnzoEFltArrayMap`` is effectively read-only. While
+    element-access of ``EnzoEFltArrayMap`` yields a
+    ``CelloArray<enzo_float,3>``, element access of a ``const
+    EnzoEFltArrayMap`` yields a ``CelloArray<const enzo_float,3>``
 
 Specific Usage
 ~~~~~~~~~~~~~~
 
 
 In the context of this toolkit, the keys of an ``EnzoEFltArrayMap``
-are usually the names of a scalar quantity (like ``"density"``)
-or component of a vector quantity (like ``"velocity_x"``). Each key
-is paired with an instance of ``EFlt3DArray`` that stores data
-associated data. Below, we provide a description of the main
-uses of ``EnzoEFltArrayMap`` by the provided operation classes:
+are usually the names of a scalar quantity (like ``"density"``) or
+component of a vector quantity (like ``"velocity_x"``). Each key is
+paired with an instance of ``EFlt3DArray`` that stores associated
+data. To simplify logic, arrays are not aliased between separate maps.
+Below, we provide a description of the main uses of
+``EnzoEFltArrayMap`` by the provided operation classes:
 
-  1. Map of cell-centered quantities.
+  1. Map of cell-centered integration quantities.
 
-     * This has quantity/quantity-component keys named for all
-       integrable and reconstructable quantities used by the
-       integrator. The associated arrays hold the values of the
-       cell-centered quantities at a given time. We currently store
-       integrable and reconstructed quantities together due to the
-       high degree of overlap between each category.
+     * This has keys named for all integration scalar quantities and
+       components of integration vector quantities. The associated
+       arrays hold the values of the cell-centered quantities at a
+       given time.
 
      * This also contains key-value pairs for passively advected
-       scalars. Note that in this context, the passive scalars are
-       usually represented in "specific" form. For reference, the
-       general convention throughout Enzo-E is to represent primarily
-       passively advected scalars in "conserved" form (as mass
-       densities) outside of hydrodynamic integrator methods and to
-       convert them to "specific" form (mass fractions) within
-       hydrodynamic integrator methods.
+       scalars. In this context, the passive scalars are stored in
+       "conserved" form.
 
-  2. Map of temporary cell-centered for tracking the total change
-     in a quantity over a timestep.
+     * In a predictor-corrector scheme (like VL+CT), we might have
+       multiple maps used to store values at different partial
+       timesteps.
 
-     * This map holds key-array pairs named for all integrable
-       quantities and groups of passively advected scalars. For each
-       (partial) timestep, these arrays are used to accumulate the
-       total change in the conserved form of each quantity. This
-       includes the flux divergence and the contributions from source
-       terms. At the end of the (partial) timestep, these are used to
-       actually update the values of the integrable quantities
+  2. Map of cell-centered primitive quantities.
 
-  3. Map of reconstructed left/right quantites
+     * This map is used to temporarily store the cell-centered
+       primitive quantities for use in reconstruction.
 
-     * 2 instances of ``EnzoEFltArrayMap`` are used to respectively hold
-       the reconstructed left and right interface quantities. This should
-       share have the same keys that are described for the first category
-       of maps.
-     * These maps are frequently passed to instances of ``EnzoReconstructor``
-       to store the reconstructed passively advected scalars and
-       reconstructable quantities. They are then usually passed to
-       ``EnzoEquationOfState`` to compute and store the reconstructed
-       integrable quantities and reconstructed pressure. Then, these are
-       frequently passed to ``EnzoRiemann`` to compute fluxes from the
-       integrable quantities and the passively advected scalars.
-     * Although this inherently represents data centered on the faces of
-       the mesh, the contained arrays should formally have the shape required
-       to hold cell-centered data. This is done to facillitate the reuse of
-       these maps to hold reconstructed fields along each dimension. This
-       means that there is always some unused allocated memory at the end of
-       one of the dimensions.
+     * This also contains key-value pairs for passively advected
+       scalars. In this context, the passive scalars are stored in
+       "specific" form.
 
-  4. Maps of Riemann Flux fields
+     * Quantities in both the primitive map and integration map should
+       NOT be aliases of each other. They should be deepcopies instead.
+
+  3. Map of temporary cell-centered values for tracking the total
+     change in a quantity over a timestep.
+
+     * This map holds key-array pairs named for all integration
+       quantities. For each (partial) timestep, these arrays are used
+       to accumulate the total change in the conserved form of each
+       quantity. This includes the flux divergence and the
+       contributions from source terms. At the end of the (partial)
+       timestep, these are used to actually update the values of the
+       integration quantities
+
+  4. Map of reconstructed left/right primitive quantites
+
+     * 2 instances of ``EnzoEFltArrayMap`` are used to respectively
+       hold the reconstructed left and right interface primitive
+       quantities. This should share have the same keys that are
+       described for the second category of maps.
+     * These maps are frequently passed to instances of
+       ``EnzoReconstructor`` to store the reconstructed passively
+       advected scalars and primitive quantities. Then, these are
+       frequently passed to ``EnzoRiemann`` to compute fluxes for
+       the integration quantities and passively advected scalars.
+
+  5. Maps of Riemann Flux fields
 
      * An instance of this kind of map is required for each
        dimension and is used to hold the face-centered fluxes along
@@ -312,22 +356,20 @@ uses of ``EnzoEFltArrayMap`` by the provided operation classes:
        normally holds ``n`` elements (including ghost zones) along axis
        ``i``, then an array used to store fluxes along axis ``i`` should
        hold ``n-1`` elements along axis ``i``.
+     * This should have all of the same keys that are in the the first
+       category of maps.
      * This kind of map should contain keys named for all passively advected
-       scalars and registered integrable quantities. The set of keys in these
+       scalars and registered integration quantities. The set of keys in these
        maps should be identical to the set of keys in the first category of
        maps, regardless of whether a quantity is "specific" or "conserved"
        (e.g. the map will hold a "velocity_x" key even though the associated
        array stores the x-component of the momentum density flux).
 
-Note that the ``EnzoEquationOfState`` and ``EnzoIntegrableUpdate``
-classes additionally require a ``EnzoEFltArrayMap`` object that hold the
-passively advected scalars in conserved form.
-
-In general, the use of ``EnzoEFltArrayMap`` objects with common sets of keys
-helps simplify the implementation of various methods (e.g. the
-cell-centered array associated with "density" is used to compute the
-reconstruct values that are stored in the fields of the "density"
-group in the reconstructed grouping).
+In general, the use of ``EnzoEFltArrayMap`` objects with common sets
+of keys helps simplify the implementation of various methods (e.g. the
+cell-centered array associated with "density" is used to reconstruct
+values that are stored in the fields of the "density"
+array in the primitive map).
 
 
 =================
@@ -393,28 +435,23 @@ Returns the thermal pressure floor.
 
 .. code-block:: c++
 
-   apply_floor_to_energy_and_sync(EnzoEFltArrayMap &integrable_map,
+   apply_floor_to_energy_and_sync(EnzoEFltArrayMap &integration_map,
                                   int stale_depth);
 
 This method applies the applies the pressure floor to the total_energy
-array specified in ``integrable_map``. If using the dual-energy formalism
+array specified in ``integration_map``. If using the dual-energy formalism
 the floor is also applied to the internal energy (also specified in 
-``integrable_map``) and synchronizes the internal energy with the total
+``integration_map``) and synchronizes the internal energy with the total
 energy. If the equation of state is barotropic, this should do nothing.
 
 .. code-block:: c++
 
-   void pressure_from_integrable(EnzoEFltArrayMap &integrable_map,
-                                 const EFlt3DArray &pressure,
-                                 EnzoEFltArrayMap &conserved_passive_map,
-                                 int stale_depth);
+   void pressure_from_integration(const EnzoEFltArrayMap &integration_map,
+                                  const CelloArray<enzo_float, 3> &pressure,
+                                  int stale_depth);
 
-This method computes the pressure from the integrable quantities
-(stored in ``integrable_map``) and stores the result in ``pressure``.
-``conserved_passive_map`` should include the passive scalars in
-conserved form.  The last argument currently doesn't do anything
-and will only be important if Grackle is in use (with
-``primordial_chemistry>1``). 
+This method computes the pressure from the integration quantities
+(stored in ``integration_map``) and stores the result in ``pressure``.
 
 *In principle this should wrap* ``EnzoComputePressure``, *but
 currently that is not the case. Some minor refactoring is needed to
@@ -426,59 +463,17 @@ internal energy.*
 
 .. code-block:: c++
 
-   void pressure_from_reconstructable(EnzoEFltArrayMap &reconstructable,
-                                      EFlt3DArray &pressure,
-                                      int stale_depth);
-
-This method computes the pressure from the reconstructable quantities
-(stored in ``reconstructable``) and stores the result in ``pressure``.
-
-Note: for a non-barotropic equation of state, pressure is considered a
-reconstructable quantity. In that case, if the pressure array in
-``reconstructable`` is an alias of ``pressure``, nothing happens.
-However, if the arrays aren't aliases, then the values are simply
-copied between arrays.
-
-.. code-block:: c++
-
-   void reconstructable_from_integrable
-     (EnzoEFltArrayMap &integrable, EnzoEFltArrayMap &reconstructable,
-      EnzoEFltArrayMap &conserved_passive_map, int stale_depth,
-      const std::vector<std::string> &passive_list);
-
-This method is responsible for computing the reconstructable
-quantities (to be held in ``reconstructable``) from the
-integrable quantities (stored in ``integrable``). Note that
-because of the high degree of overlap between the quantities in each
-category, the overlapping quantities are assumed to be represented by
-aliased arrays. Entries in ``passive_list`` specifies the passively
-advected scalars that should be present in both maps.
-The conserved form of the passively advected scalars
-must be provided (stored in ``conserved_passive_map``) in case the
-equation of state is barotropic and Grackle is in use. 
-
-For a barotropic equation of state, this nominally does nothing while
-for a non-barotropic equation of state, this just computes pressure by
-calling ``EnzoEquationOfState::pressure_from_integrable``.
-
-.. code-block:: c++
-
-   void integrable_from_reconstructable
-     (EnzoEFltArrayMap &reconstructable, EnzoEFltArrayMap &integrable,
+   void primitive_from_integration
+     (const EnzoEFltArrayMap &integration_map, EnzoEFltArrayMap &primitive_map,
       int stale_depth, const std::vector<std::string> &passive_list);
 
-This method computes the integrable quantities (to be held in
-``integrable``) from the reconstructable quantities (stored in
-``reconstructable``). Again, because of the high degree of
-overlap between the quantities in each category, the overlapping
-quantities are assumed to be represented by aliased quantities.
-Entries in ``passive_list`` specifies the passively
-advected scalars that should be present in both maps.
-
-For a barotropic equation of state, this nominally does nothing, while
-for a non-barotropic equation of state, this nominally just computes
-specific total energy. If the dual-energy formalism is in use this
-also computes the internal energy.
+This method is responsible for computing the primitive quantities (to
+be held in ``primitive_map``) from the integration quantities (stored
+in ``integration_map``).  Non-passive scalar quantities appearing in
+both ``integration_map`` and ``primitive_map`` are simply deepcopied
+and passive scalar quantities are converted from conserved-form to
+specific form. For a non-barotropic EOS, this also computes pressure
+(by calling ``EnzoEquationOfState::pressure_from_integration``)
 
 *In the future, it might be worth considering making this into a subclass
 of Cello's ``Physics`` class. If that is done, it may be advisable to
@@ -510,15 +505,16 @@ To get a pointer to an instance of a concrete implementation of
 .. code-block:: c++
 
    EnzoReconstructor* construct_reconstructor
-    (const std::vector<std::string> active_reconstructed_quantities,
+    (const std::vector<std::string> active_primitive_keys,
      std::string name, enzo_float theta_limiter);
 
-The factory method requires that we register the names of the
-reconstructable quantities via ``active_reconstructable_quantities``
-and specify the name of the reconstruction algorithm, ``name``. Note
-that the names of the reconstructable quantites should match
-quantities specified in ``FIELD_TABLE`` ; for more details about
-``FIELD_TABLE``, see :ref:`Centered-Field-Registry`
+The factory method requires that we register the keys of the
+non-passive scalar primitive quantities that are are to be
+reconstructed via ``active_primitive_keys``. We specify
+the name of the reconstruction algorithm, ``name``. Note that the
+primitive keys should correspond to quantities specified in
+``FIELD_TABLE`` ; for more details about ``FIELD_TABLE``, see
+:ref:`Centered-Field-Registry`
 
 Public Interface
 ----------------
@@ -527,30 +523,30 @@ The main interface function provided by this class is:
 .. code-block:: c++
 
     void reconstruct_interface
-      (EnzoEFltArrayMap &prim_map, EnzoEFltArrayMap &priml_map,
+      (const EnzoEFltArrayMap &prim_map, EnzoEFltArrayMap &priml_map,
        EnzoEFltArrayMap &primr_map, int dim, EnzoEquationOfState *eos,
        int stale_depth, const std::vector<std::string>& passive_list);
 
-This function takes the cell-centered reconstructable primtive
-quantities (specified by the contents of ``prim_map``) and computes
-the left and right reconstructed states (the results are stored in
-``priml_map`` and ``primr_map``) along the dimension specifed by
-``dim``. If dim has a value of ``0``/ ``1``/ ``2`` then the values are
-reconstructed along the x-/y-/z-axis. ``stale_depth`` indicates the
-current stale_depth for the supplied cell-centered quantities (prior
-to reconstruction). Note that the arrays in ``priml_map`` and
-``primr_map`` should have arrays that are large enough to store
-cell-centered quantitites so that they can be reused to hold the
-face-centered fields along each dimension. ``passive_list`` is used to
-specify the names (keys) of the passively advected quantities that are
-to be reconstructed.
+This function takes the cell-centered primtive quantities (specified
+by the contents of ``prim_map``) and computes the left and right
+reconstructed states (the results are stored in ``priml_map`` and
+``primr_map``) along the dimension specifed by ``dim``. If dim has a
+value of ``0``/ ``1``/ ``2`` then the values are reconstructed along
+the x-/y-/z-axis. ``stale_depth`` indicates the current stale_depth
+for the supplied cell-centered quantities (prior to
+reconstruction). ``priml_map`` and ``primr_map`` should have the same
+shapes as ``prim_map``, except along the reconstruction axis; along that
+axis ``prim_map`` should be able to hold 1 more value.
+``passive_list`` is used to specify the
+names (keys) of the passively advected quantities that are to be
+reconstructed.
 
 The ``int EnzoReconstructor::immediate_staling_rate()`` method is
 provided to determine the amount by which the stale depth increases
 immediately after reconstruction, for a given algorithm. The
 ``int EnzoReconstructor::delayed_staling_rate()`` method returns how much
 the stale depth increases after adding flux divergence, computed from
-the reconstructed values, to the integrable quantities  (this is
+the reconstructed values, to the integration quantities  (this is
 normally 1). Finally ``int EnzoReconstructor::total_staling_rate()``
 gives the sum of the results yielded by the prior 2 methods.
 
@@ -617,49 +613,77 @@ static factory method:
 
 .. code-block:: c++
 
-   EnzoRiemann* EnzoRiemann::construct_riemann
-     (std::vector<std::string> integrable_quantities,
-      std::string solver);
+   EnzoRiemann* EnzoRiemann::construct_riemann(std::string solver, bool mhd,
+                                               bool internal_energy);
 
-The factory method requires that we both register the names of the
-integrable quantities (excluding passively advected scalars), with
-``integrable_quantities``, and specify the name of the solver
-``solver``. Note that the names of the integrable quantites should
-match quantities specified in ``FIELD_TABLE`` that are identified as
-being actively advected. For more details about ``FIELD_TABLE``, see
-:ref:`Centered-Field-Registry`
+The factory method requires that we specify the name of the solver (via
+``solver``), whether magnetic fields are present (via ``mhd``), and whether
+the internal energy flux must be computed (via ``internal_energy``).
+
+An instance of ``EnzoRiemann`` specifies the expected non-passive keys
+(and key-order) that the ``flux_map`` argument should have when passed to its
+``solve`` method (these keys correspond to integration quantities).
+
+.. code-block:: c++
+
+   const std::vector<std::string> integration_quantity_keys() const;
+
+The following method specifies the expected non-passive keys (and key-order)
+that the ``priml_map`` and ``primr_map`` arguments should have when passed
+an ``EnzoRiemann``\'s ``solve`` method (these keys correspond to primitive
+quantities).
+
+.. code-block:: c++
+
+   const std::vector<std::string> primitive_quantity_keys() const;
+
 
 The main interface function of ``EnzoRiemann`` is:
 
 .. code-block:: c++
 
-   void solve
-     (EnzoEFltArrayMap &prim_map_l, EnzoEFltArrayMap &prim_map_r,
-      const EFlt3DArray &pressure_array_l, const EFlt3DArray &pressure_array_r,
-      EnzoEFltArrayMap &flux_map, int dim, EnzoEquationOfState *eos,
-      int stale_depth, const std::vector<std::string> &passive_lists,
-      EFlt3DArray *interface_velocity)
+   void solve(const EnzoEFltArrayMap &prim_map_l,
+              const EnzoEFltArrayMap &prim_map_r,
+              EnzoEFltArrayMap &flux_map, int dim, EnzoEquationOfState *eos,
+              int stale_depth, const str_vec_t &passive_list,
+              const CelloArray<enzo_float,3> * const interface_velocity) const;
 
 In this function, the ``prim_map_l`` and ``prim_map_r`` arguments are
 references to the ``EnzoEFltArrayMap`` objects holding the arrays of
-reconstructed left/right integrable quantities and passively advected
-scalars. The ``pressure_array_l``/ ``pressure_array_r`` arguments
-specify arrays holding the left/right reconstructed pressure. The
-``flux_map`` argument holds the face-centered arrays where the
-computed fluxes for each integrable quantity and passively advected
-scalar will be stored. ``dim`` indicates the dimension along which the
-flux should be computed (0,1,2 corresponds to x,y,z).
+reconstructed left/right primitive quantities. The ``flux_map``
+argument holds the face-centered arrays where the computed fluxes for
+each integration quantity are written. ``dim`` indicates the dimension
+along which the flux should be computed (0,1,2 corresponds to x,y,z).
 ``interface_velocity`` is an optional argument used to specify a
 pointer to an array that can be used to store interface velocity
 values computed by the Riemann Solver (this is primarily used for
 computing internal energy source terms when the dual energy formalism
 is in use).
 
+Some additional notes:
+
+  *  The first ``EnzoRiemann::primitive_quantity_keys().size()`` keys of
+     ``prim_map_l`` and ``prim_map_r`` should match the values and order of
+     ``EnzoRiemann::primitive_quantity_keys()``.
+
+  * Likewise, the first ``EnzoRiemann::integration_quantity_keys().size()``
+    keys of ``flux_map`` should match the values and order of
+    ``EnzoRiemann::integration_quantity_keys()``.
+
+  * ``prim_map_l``, ``prim_map_r``, and ``flux_map`` should also each contain
+    keys for each of the passive scalars in ``passive_list`` (the order of
+    these is not currently enforced).
+
+  * All of the arrays in ``prim_map_l``, ``prim_map_r``, and ``flux_map``
+    should have the same shape. If ``interface_velocity`` is specified, it
+    should also have that shape.
+
+
 
 Implementation Notes: ``EnzoRiemannImpl``
 -----------------------------------------
 
-Historically, in many hydro codes (including Enzo) there is a lot of code
+Traditionally, in many hydro codes (including Enzo) there is a lot of code
 duplication between implementations of different types of Riemann Solvers
 (e.g. converting left/right primitives to left/right conserved quantities
 and computing left/right fluxes). To try to reduce some of this
@@ -674,11 +698,20 @@ solver-specific calculations and is called at every cell-interface.
 Additionally, the functor also specifies a specialization of the
 template class ``EnzoRiemannLUT<InputLUT>`` that primarily
 
-  * Specifies the exact set of actively advected integrable quantities
-    that a given solver expects
+  * Specifies the exact set of actively advected integration quantities
+    and primitive quantities that a given solver expects. Technically,
+    the primitives and any optional active integration quantities, like
+    ``"internal_energy"``, are not directly specified by the lookup table,
+    but ``EnzoRiemannImpl<ImplFunctor>`` accounts for this.
   * Serves as a compile-time lookup table. It statically maps the names
-    of the all of the components of the relevant actively advected
-    quantities to unique array indices.
+    of all of the components of the relevant actively advected
+    integration quantities to unique array indices.
+
+As an aside, the key-ordering requirements for ``EnzoRiemann::solve``
+ensure that the order of arrays in ``EnzoEFltArrayMap``
+reflects the order of items in the lookup table. (Internally,
+``EnzoRiemannImpl`` permutes the order of vector-components in order
+to preserve symmetry).
 
 See :ref:`EnzoRiemannLUT-section`
 for a more detailed description of ``EnzoRiemannLUT<InputLUT>`` and
@@ -698,26 +731,25 @@ computed. At each location, the following sequence of operations are
 performed:
 
   1. Retrieve the left and right primitives at the given location from
-     the input arrays and stores them in stack-allocated arrays of
-     ``enzo_float`` elements called ``wl`` and ``wr``. As mentioned
-     above, the values are organized according to the specialization
-     of ``EnzoRiemannLUT<InputLUT>`` provided by the ``ImplFunctor``
-     (hereafter, ``ImplFunctor::LUT``)
-  2. The left and right pressure values are retrieved from the
-     temporary fields holding the values that were precomputed from
-     the reconstructed quantities (presumably using a concrete
-     subclass of ``EnzoEquationOfState``). The values are stored in
+     the input arrays and stores them in stack-allocated ``enzo_float``
+     arrays called ``wl`` and ``wr``. As mentioned above, the values are
+     organized according to the specialization of
+     ``EnzoRiemannLUT<InputLUT>`` provided by the ``ImplFunctor``
+     (hereafter, ``ImplFunctor::LUT``). *Note: for non-barotropic
+     equations of state* ``pressure`` *is stored at*
+     ``ImplFunctor::LUT::total_energy``.
+  2. The left and right pressure values are determined (they may have
+     been precomputed using a concrete subclass of
+     ``EnzoEquationOfState``). The values are stored in
      local variables ``pressure_l`` and ``pressure_r``.
   3. The conserved forms of the left and right reconstructed
-     primitives and stored in the arrays called ``Ul`` and
-     ``Ur``. Primitives that are always in conserved form (e.g.
-     density or magnetic field). The elements of ``Ul`` / ``Ur``
-     are also ordered by ``ImplFunctor::LUT`` (e.g. the index for a
-     given component of the velocity in ``wl`` / ``wr`` matches the
-     index for the same component of the momentum in ``Ul`` / ``Ur``).
-  4. The standard left and right hydro/MHD fluxes are computed using
-     the above quantities and stored in ``Fl`` and ``Fr`` (organized by
-     ``ImplFunctor::LUT``)
+     integration quantities are computed and stored in the arrays
+     called ``Ul`` and ``Ur`` (organized by ``ImplFunctor::LUT``)
+     *Note: There may be some duplication of values between*
+     ``Ul`` *&* ``Ur`` *and* ``wl`` *&* ``Ur``.
+  4. The standard left and right integration quantity fluxes fluxes are
+     computed using the above quantities and stored in ``Fl`` and ``Fr``
+     (organized by ``ImplFunctor::LUT``)
   5. These quantities are all passed to the static public
      ``operator()`` method provided by ``ImplFunctor`` that returns the
      array of interface fluxes in the array, ``fluxes``. (It also
@@ -725,11 +757,9 @@ performed:
   6. The interface fluxes and interface velocity are then copied into the
      output fields.
 
-A separate method is provided to compute the fluxes for the passively
-advected quantities. This method will also be compute the fluxes of any
-specified quantities that are nominally actively advected, but can fall
-back to using passive advection when the solver doesn't explictly support
-it (the main example is ``"internal_energy"``)
+After computing the fluxes for all of the actively advected integration
+quantities at all locations, a helper method is invoked to compute the
+fluxes for the passively advected quantities.
      
 *Note: Currently EnzoRiemannImpl has only been tested and known to
 work for 3D problems. Additionally, no solvers (or more specifically,
@@ -756,9 +786,9 @@ The class is expected to:
     * publically define the ``LUT`` type, which should be a specialization
       of the ``EnzoRiemannLUT<InputLUT>`` template class.
       ``ImplFunctor::LUT`` should indicate which actively advected
-      quantities are expected by ``ImplFunctor`` and how they organized.
-      For more details about how how ``EnzoRiemannLUT<InputLUT>`` is used,
-      see :ref:`EnzoRiemannLUT-section`
+      integration quantities are expected by ``ImplFunctor`` and how they
+      are organized. For more details about how ``EnzoRiemannLUT<InputLUT>``
+      is used, see :ref:`EnzoRiemannLUT-section`
            
     * provide the const-qualified function call method, ``operator()``.
 
@@ -779,16 +809,19 @@ The expected function signature of the ``operator()`` method is as follows:
 This function is called at every cell-interface and returns an array
 holding the Riemann Flux at a given cell-interface. Note that
 ``lutarray<ImplFunctor::LUT>`` is actually an alias for
-``std::array<enzo_float, ImplFunctor::LUT::NEQ>``. Each of these
+``std::array<enzo_float, ImplFunctor::LUT::num_entries>``. Each of these
 arrays hold values associated with the components of each relevant
-actively advected quantity and are organized according to
-``ImplFunctor::LUT`` (again, see :ref:`EnzoRiemannLUT-section` for
-more details about the ``LUT`` type).
+actively advected integration/primitive quantity and are organized
+according to ``ImplFunctor::LUT`` (again, see
+:ref:`EnzoRiemannLUT-section` for more details about the ``LUT`` type).
 
-``flux_l``/ ``flux_r``, ``prim_l``/ ``prim_r``, and ``cons_l``/
-``cons_r`` store the left/right interface fluxes values, primitive
-quantities, and conserved quantities (they are passed ``Fl``/ ``Fr``,
-``wl``/ ``wr``, and ``Ul``/ ``Ur``, respectively).
+``flux_l``/ ``flux_r`` and ``cons_l``/ ``cons_r`` store the left/right
+interface fluxes values and conserved quantities (they are passed
+respectively passed ``Fl``/ ``Fr`` and ``Ul``/ ``Ur``, respectively).
+``prim_l``/ ``prim_r`` store the left/right interface primitive
+values, and are passed ``wl``/ ``wr``. As mentioned before, for
+non-barotropic equations of state, ``prim_l``/ ``prim_r`` store
+pressure at ``ImplFunctor::LUT::total_energy``
 
 The left and right reconstructed pressure values are passed as
 ``pressure_l`` and ``pressure_r``. ``barotropic_eos`` indicates
@@ -820,67 +853,69 @@ This is a template class that provides the following features at compile
 time:
 
     * a lookup table (LUT) that maps the names of components of a subset
-      of the actively advected quantities defined in ``FIELD_TABLE`` to
-      unique, contiguous indices.
+      of the actively advected integration quantities defined in
+      ``FIELD_TABLE`` to unique, contiguous indices.
 
-    * the number of quantity components included in the table
+    * the number of integration quantity components included in the table
 
-    * a way to iterate over just the conserved quantities or specific
+    * a way to iterate over just the conserved or specific integration
       quantities values that are stored in an array using these mapping
 
-    * a way to query which of the actively advected quantities in
-      FIELD_TABLE are not included in the LUT
+    * a way to query which of the actively advected integration quantities
+      in FIELD_TABLE are not included in the LUT
 
 These feature are provided via the definition of publicly accessible
 integer constants in every specialization of the template class. All
 specializations have:
 
-    * a constant called ``NEQ`` equal to the number of quantity components
-      included in the lookup table
+    * a constant called ``num_entries`` equal to the number of integration
+      quantity components included in the lookup table
 
     * a constant called ``specific_start`` equal to the number of components
-      of conserved quantities included in the lookup table
+      of conserved integration quantities included in the lookup table
 
     * ``qkey`` constants, which include constants named for the components
-      of ALL actively advected quantities in FIELD_TABLE. A constant
-      associated with a SCALAR quantity, ``{qname}``, is simply called
-      ``{qname}`` while constants associated with a vector quantity
+      of ALL actively advected integration quantities in FIELD_TABLE. A
+      constant associated with a SCALAR quantity, ``{qname}``, is simply
+      called ``{qname}`` while constants associated with a vector quantity
       ``{qname}`` are called ``{qname}_i``, ``{qname}_j``, and ``{qname}_k``.
 
-The `qkey` constants serve as both the keys of the lookup table and a
+The ``qkey`` constants serve as both the keys of the lookup table and a
 way to check whether a component of an actively advected quantity is
 included in the table. Their values are satisfy the following conditions:
 
-    * All constants named for values corresponding to quantities included
-      in the table have values of ``-1``
+    * All constants named for values corresponding to quantities NOT
+      included in the lookup table have values of ``-1``
 
-    * All constants named for conserved quantities have unique integer
-      values in the internal ``[0,specific_start)``
+    * All constants named for conserved integration quantities have unique
+      integer values in the internal ``[0,specific_start)``
 
-    * All constants named for specific quantities have unique integer
-      values in the interval ``[specific_start, NEQ)``
+    * All constants named for specific integration quantities have unique
+      integer values in the interval ``[specific_start, num_entries)``
 
 The lookup table is always expected to include density and the 3 velocity
 components. Although it may not be strictly enforced (yet), the lookup
 table is also expected to include either all 3 components of a vector
-quantity or None of them.
+quantity or None of them. Additionally, the ``k``\th component of a vector
+quantity is expected to have a value that is 1 larger than that of the
+``j``\th component and 2 larger than the ``i``\th component.
 
 This template class also provides a handful of helpful static methods to
 programmatically probe the table's contents at runtime and validate that
 the above requirements are specified.
 
 For the sake of providing some concrete examples about how the code works,
-let's assume that we have a class ``MyInputLUT`` that is defined as:
+let's assume that we have a class ``MyIntegLUT`` that is defined as:
 
 .. code-block:: c++
 
-   struct MyIntLUT {
+   struct MyIntegLUT {
      enum vals { density=0, velocity_i, velocity_j, velocity_k,
-                 total_energy, NEQ, specific_start = 1};
+                 total_energy, num_entries, specific_start = 1};
    };
 
-The template specialization ``EnzoRiemannLUT<MyIntLUT>`` assumes that
-all undefined `qkey` constants omitted from ``MyIntLUT`` are not included
+The template specialization ``EnzoRiemannLUT<MyIntegLUT>`` assumes that
+all undefined ``qkey`` constants omitted from ``MyIntegLUT`` are not included
 in the lookup table and will define them within the template specialization
 to have values of ``-1``.
 
@@ -889,27 +924,29 @@ velocity, one would evaluate:
 
 .. code-block:: c++
 
-   int density_index = EnzoRiemannLUT<MyInLUT>::density; //=0
-   int vj_index = EnzoRiemannLUT<MyInLUT>::velocity_j;   //=2
+   int density_index = EnzoRiemannLUT<MyIntegLUT>::density; //=0
+   int vj_index = EnzoRiemannLUT<MyIntegLUT>::velocity_j;   //=2
 
+Additionally, the value of ``EnzoRiemannLUT<MyIntegLUT>::bfield_k`` would be
+``-1``.
 
 It makes more sense to talk about the use of this template class when we
 have a companion array. For convenience, the alias template
 ``lutarray<LUT>`` type is defined. The type,
 ``lutarray<EnzoRiemannLUT<InputLUT>>`` is an alias of the type
-``std::array<enzo_float, EnzoRiemannLUT<InputLUT>::NEQ>;``.
+``std::array<enzo_float, EnzoRiemannLUT<InputLUT>::num_entries>;``.
 
 As an example, imagine that the total kinetic energy density needs to be
-computed at a single location from an values stored in an array, ``prim``,
-of type ``lutarray<EnzoRiemannLUT<MyInLUT>>``:
+computed at a single location from an values stored in an array, ``integ``,
+of type ``lutarray<EnzoRiemannLUT<MyIntegLUT>>``:
 
 .. code-block:: c++
 
-   using LUT = EnzoRiemannLUT<MyInLUT>;
-   enzo_float v2 = (prim[LUT::velocity_i] * prim[LUT::velocity_i] +
-                    prim[LUT::velocity_j] * prim[LUT::velocity_j] +
-   prim[LUT::velocity_k] * prim[LUT::velocity_k]);
-   enzo_float kinetic = 0.5 * prim[LUT::density] * v2;
+   using LUT = EnzoRiemannLUT<MyIntegLUT>;
+   enzo_float v2 = (integ[LUT::velocity_i] * integ[LUT::velocity_i] +
+                    integ[LUT::velocity_j] * integ[LUT::velocity_j] +
+                    integ[LUT::velocity_k] * integ[LUT::velocity_k]);
+   enzo_float kinetic = 0.5 * integ[LUT::density] * v2;
 
 
 ``EnzoRiemannLUT<InputLUT>``, makes it very easy to
@@ -940,24 +977,19 @@ density at a single location for an arbitrary lookup table:
 Adding new quantites
 --------------------
 
-To add support for new actively advected integrable cell-centered
+To add support for new actively advected integration cell-centered
 quantities (e.g. cosmic ray energy/flux), the table of cell-centered
 quantities (``FIELD_TABLE``) must be updated. See
-:ref:`Centered-Field-Registry`
-for more details.
+:ref:`Centered-Field-Registry` for more details.  To add support for
+computing fluxes for such quantities, modifications must be made to
+either ``EnzoRiemannImpl`` or the ``ImplFunctor`` of an existing
+solver. Alternatively, for certain quantities, a brand new solver
+may need to be introduced.
 
-To add support for computing fluxes for such quantities, modifications
-must be made to ``EnzoRiemannImpl``. Currently, an abstract base class
-called for ``EnzoFluxFunctor`` is provided for this purpose. The idea
-is define a subclass to be defined for each additional set of flux
-calculations and then in then have the factory method,
-``EnzoRiemann::construct_riemann``, pass an array of the relevant
-functors to ``EnzoRiemannImpl``.
-
-*However, because the functors are called as pointers will probably
-incur overhead. In reality, the better solution might be to hardcode
-in the additonal flux calculation functions in some kind of helper
-method of* ``EnzoRiemannImpl``.
+When adding a new integration vector quantity, you also need to add a
+few lines to the main for-loop of ``EnzoRiemannImpl`` for copying
+values to ``wl``/``wr`` and from ``fluxes`` (The existing code doing
+this for the velocity and magnetic fields should be used as a guide).
 
 Adding new solvers
 ------------------
@@ -982,41 +1014,41 @@ The additional steps for implementing a new Riemann solver by speciallizing
      ``EnzoRiemannImpl`` that uses the new ``ImplFunctor`` class
      (e.g. ``using EnzoRiemannHLLD = EnzoRiemannImpl<HLLDImpl>;``).
 
-==============================
-Updating integrable quantities
-==============================
+===============================
+Updating integration quantities
+===============================
 
-The ``EnzoIntegrableUpdate`` class has been provided to encapsulate
-the operation of updating integrable quantities after a (partial)
+The ``EnzoIntegrationQuanUpdate`` class has been provided to encapsulate
+the operation of updating integration quantities after a (partial)
 time-step. The operation was factored out of the ``EnzoMethodMHDVlct``
 class since it appear in all Godunov solvers.
 
-The constructor for ``EnzoIntegrableUpdate`` has the following
+The constructor for ``EnzoIntegrationQuanUpdate`` has the following
 signature:
 
 .. code-block:: c++
 
-   EnzoIntegrableUpdate(std::vector<std::string> integrable_groups,
-		        bool skip_B_update)
+   EnzoIntegrationQuanUpdate(std::vector<std::string> integration_quantity_keys,
+                             bool skip_B_update)
 
 The function requires that we:
 
-  * register the names of the integrable quantities (with
-    ``integrable_groups``)
+  * register the keys of the integration quantities (with
+    ``integration_quantity_keys``)
   * indicate whether the update to the magnetic field should
     be skipped.
 
-The names of the integrable quantites should match the names specified
+The integration quantity keys should match the names specified
 in ``FIELD_TABLE``; see :ref:`Centered-Field-Registry` for more
 details. The update to the magnetic field should be skipped when
 Constrained Transport is in use (since the magnetic field update is
 handled separately). If the magnetic field is not specified as an
-integrable quantity, then the value specified for ``skip_B_update`` is
+integration quantity, then the value specified for ``skip_B_update`` is
 unimportant
 
 The following method is used to compute the change in (the conserved
-form of) the integrable and passively advected quantites due to the
-flux divergence along dimension ``dim`` over the (partial) imestep
+form of) the integration and passively advected quantites due to the
+flux divergence along dimension ``dim`` over the (partial) timestep
 ``dt``. The arrays in ``dUcons_map`` are used to accumulate the total
 changes in these quantities. ``passive_list`` lists the names (keys)
 of the passively advected scalars.
@@ -1024,7 +1056,8 @@ of the passively advected scalars.
 .. code-block:: c++
 
    void accumulate_flux_component
-     (int dim, double dt, enzo_float cell_width, EnzoEFltArrayMap &flux_map,
+     (int dim, double dt, enzo_float cell_width,
+     const EnzoEFltArrayMap &flux_map,
       EnzoEFltArrayMap &dUcons_map, int stale_depth,
       const std::vector<std::string> &passive_list) const;
 
@@ -1038,27 +1071,28 @@ argument is used in the same way as the previous function.
     void clear_dUcons_group(EnzoEFltArrayMap &dUcons_map, enzo_float value,
                             const std::vector<std::string> &passive_list) const;
 
-The method used to actually add the accumulated change in the integrable
+The method used to actually add the accumulated change in the integration
 (specified in ``dUcons_map``) to the values of the
-integrable quantities from the start of the timestep (specificed by
-``initial_integrable_map``) has the following signature:
+integration quantities from the start of the timestep (specificed by
+``initial_integration_map``) has the following signature:
 
 .. code-block:: c++
 
    void update_quantities
-     (EnzoEFltArrayMap &initial_integrable_map, EnzoEFltArrayMap &dUcons_map,
-      EnzoEFltArrayMap &out_integrable_map,
+     (EnzoEFltArrayMap &initial_integration_map,
+      const EnzoEFltArrayMap &dUcons_map,
+      EnzoEFltArrayMap &out_integration_map,
       EnzoEFltArrayMap &out_conserved_passive_scalar,
       EnzoEquationOfState *eos, int stale_depth,
       const std::vector<std::string> &passive_list) const;
 
 The fields included in ``dUcons_map`` should include contributions
 from both the flux divergence AND source terms. The results for the
-actively advected quanties are stored in ``out_integrable_map`` and
+actively advected quanties are stored in ``out_integration_map`` and
 the results for the passively advected scalars are stored in conserved
 form in the arrays held by ``out_conserved_passive_scalar`` (note that
 the initial values of the passive scalars specified in
-``initial_integrable_map`` are in specific form).
+``initial_integration_map`` are in specific form).
 
 ==========================
 Magnetic Field Integration
@@ -1183,17 +1217,17 @@ magnetic field values.
 .. code-block:: c++
 
    void update_all_bfield_components
-     (EnzoEFltArrayMap &cur_prim_map, EnzoEFltArrayMap &xflux_map,
-      EnzoEFltArrayMap &yflux_map, EnzoEFltArrayMap &zflux_map,
+     (EnzoEFltArrayMap &cur_prim_map, const EnzoEFltArrayMap &xflux_map,
+      const EnzoEFltArrayMap &yflux_map, const EnzoEFltArrayMap &zflux_map,
       EnzoEFltArrayMap &out_centered_bfield_map, enzo_float dt,
       int stale_depth) noexcept;
 
 In ``EnzoBfieldMethodCT`` this will also update the face-centered
 magnetic field values (it assumes that ``identify_upwind`` was called
 once for each dimension and uses the stored data). When using this
-alongside ``EnzoIntegrableUpdate``, care needs to be taken about the
+alongside ``EnzoIntegrationQuanUpdate``, care needs to be taken about the
 order in which this method is called relative to
-``EnzoIntegrableUpdate::update_quantities`` that accounts for the time
+``EnzoIntegrationQuanUpdate::update_quantities`` that accounts for the time
 when floors are applied to the total energy.
 
 Descriptor Methods

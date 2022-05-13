@@ -9,10 +9,14 @@ import socket
 #======================================================================
 
 #----------------------------------------------------------------------
-# Temporary setting for using new Output implementation
-#----------------------------------------------------------------------
+# Whether to bypass passing MsgRefine directly to Block constructor,
+# or request it from a separate entry method to bypass a Charm++
+# memory leak. This should only be set to 0 after (and if) the bug is
+# addressed in Charm++, or when explicitly testing a Charm++ build for
+# this bug.
+# ----------------------------------------------------------------------
 
-new_output = 0
+bypass_charm_mem_leak = 1
 
 #----------------------------------------------------------------------
 # Maximum number of procesess per shared-memory node (can be larger than needed)
@@ -195,8 +199,6 @@ define_papi  =        'CONFIG_USE_PAPI','PAPI3'
 
 # Experimental code defines
 
-define_new_output   = 'NEW_OUTPUT'
-
 # Debugging defines
 
 define_trace =        'CELLO_TRACE'
@@ -252,14 +254,15 @@ if   (arch == "gordon_gnu"):   from gordon_gnu   import *
 elif (arch == "gordon_intel"): from gordon_intel import *
 elif (arch == "gordon_pgi"):   from gordon_pgi   import *
 elif (arch == "comet_gnu"):    from comet_gnu    import *
-elif (arch == "linux_gnu"):    from linux_gnu    import *
-elif (arch == "linux_illium"): from linux_illium import *
+elif (arch == "linux_clang"):  from linux_clang  import *
 elif (arch == "linux_gcc_9"):  from linux_gcc_9  import *
-elif (arch == "linux_intel"):  from linux_intel  import *
-elif (arch == "linux_yt"):     from linux_yt     import *
+elif (arch == "linux_gnu"):    from linux_gnu    import *
 elif (arch == "linux_gprof"):  from linux_gprof  import *
+elif (arch == "linux_illium"): from linux_illium import *
+elif (arch == "linux_intel"):  from linux_intel  import *
 elif (arch == "linux_mpe"):    from linux_mpe    import *
 elif (arch == "linux_tau"):    from linux_tau    import *
+elif (arch == "linux_yt"):     from linux_yt     import *
 elif (arch == "ncsa_bw"):      from ncsa_bw      import *
 elif (arch == "ncsa_bw_net"):  from ncsa_bw_net  import *
 elif (arch == "ncsa_bw_smp"):  from ncsa_bw_smp  import *
@@ -307,6 +310,9 @@ else:
 
 defines.append(define_int_size)
 
+if (bypass_charm_mem_leak == 1):
+   defines.append('BYPASS_CHARM_MEM_LEAK')
+
 defines.append({'CONFIG_NODE_SIZE' : node_size })
 defines.append({'CONFIG_NODE_SIZE_3' : node_size*3 })
 
@@ -329,8 +335,6 @@ if (use_jemalloc == 1):
 
 if (use_papi != 0):      defines.append( define_papi )
 if (use_grackle != 0):   defines.append( define_grackle )
-
-if (new_output != 0):    defines.append( define_new_output )
 
 if (trace != 0):         defines.append( define_trace )
 if (verbose != 0):       defines.append( define_verbose )
@@ -533,14 +537,6 @@ cello_def.write ("#define CELLO_TIME "
 		"\""+time.strftime("%H:%M:%S",time.gmtime())+"\"\n" )
 
 #----------
-charm_version = subprocess.check_output (["cat", charm_path + "/VERSION"]).rstrip().decode('utf-8');
-cello_def.write ("#define CHARM_VERSION "+charm_version+"\n" )
-
-fp_charm_version = open ("test/CHARM_VERSION", "w")
-fp_charm_version.write(charm_version + str("\n"));
-fp_charm_version.close()
-
-Clean('.','test/CHARM_VERSION')
 
 cello_def.write ("#define CHARM_PATH \"" + charm_path + "\"\n" )
 
@@ -593,9 +589,9 @@ Export('use_papi')
 if (have_git == 1):
    branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).rstrip()
    build_dir = 'build-' + branch.decode('utf-8')
-else:     
+else:
    build_dir = 'build'
-   
+
 SConscript( 'src/SConscript',variant_dir=build_dir)
 SConscript('test/SConscript')
 

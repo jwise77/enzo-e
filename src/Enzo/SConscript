@@ -44,6 +44,7 @@ if (use_grackle):   libraries_external.append('grackle')
 #------------------------------
 
 sources  = [Glob('enzo*cpp'),
+	    'FofLib.cpp',
     	    'calcdiss.F',
 	    'calc_dt.F',
 	    'calc_eigen.F',
@@ -66,7 +67,7 @@ sources  = [Glob('enzo*cpp'),
 	    'intprim.F',
 	    'intvar.F',
 	    'ngpinterp.F',
-    	'pgas2d_dual.F',
+	    'pgas2d_dual.F',
 	    'pgas2d.F',
 	    'ppm_de.F',
 	    'PPML_Conservative.F',
