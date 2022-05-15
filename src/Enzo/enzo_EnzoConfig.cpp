@@ -726,6 +726,7 @@ void EnzoConfig::read_field_(Parameters *p)
 {
   field_gamma = p->value_float ("Field:gamma",5.0/3.0);
   field_uniform_density = p->value_float ("Field:uniform_density",1.0);
+  field_uniform_temperature = p->value_float ("Field:uniform_temperature",1.0);
 }
 
 //----------------------------------------------------------------------
@@ -930,9 +931,6 @@ void EnzoConfig::read_initial_burkertbodenheimer_(Parameters * p)
    p->value_float ("Initial:burkertbodenheimer:outer_velocity",-1.0);
 }
 
-  field_gamma = p->value_float ("Field:gamma",5.0/3.0);
-  field_uniform_density = p->value_float ("Field:uniform_density",1.0);
-  field_uniform_temperature = p->value_float ("Field:uniform_temperature",1.0);
 //----------------------------------------------------------------------
 
 void EnzoConfig::read_initial_inclined_wave_(Parameters * p)
