@@ -260,7 +260,6 @@ void EnzoInitialIsolatedGalaxy::enforce_block
   Particle particle = block->data()->particle();
   InitializeParticles(block, &particle);
 
-
 #ifdef CONFIG_USE_GRACKLE
    grackle_field_data grackle_fields_;
    EnzoMethodGrackle::setup_grackle_fields(enzo_block, &grackle_fields_);
@@ -802,20 +801,6 @@ void EnzoInitialIsolatedGalaxy::InitializeParticles(Block * block,
     int ib  = 0; // batch counter
     int ipp = 0; // particle counter
 
-    // this will point to the particular value in the
-    // particle attribute array
-    enzo_float * pmass = 0;
-    enzo_float * px   = 0;
-    enzo_float * py   = 0;
-    enzo_float * pz   = 0;
-    enzo_float * pvx  = 0;
-    enzo_float * pvy  = 0;
-    enzo_float * pvz  = 0;
-
-    enzo_float * pmetal = 0;
-    enzo_float * plifetime = 0;
-    enzo_float * pform     = 0;
-
     // now loop over all particles
     for (int i = 0; i < np; i ++){
       ASSERT("EnzoInitialIsolatedGalaxy",
@@ -833,41 +818,28 @@ void EnzoInitialIsolatedGalaxy::InitializeParticles(Block * block,
       }
 
       int new_particle = particle->insert_particles(it, 1);
-      particle->index(new_particle,&ib,&ipp);
 
-      // get pointers to each of the associated arrays
-      pmass = (enzo_float *) particle->attribute_array(it, ia_m, ib);
-      px    = (enzo_float *) particle->attribute_array(it, ia_x, ib);
-      py    = (enzo_float *) particle->attribute_array(it, ia_y, ib);
-      pz    = (enzo_float *) particle->attribute_array(it, ia_z, ib);
-      pvx   = (enzo_float *) particle->attribute_array(it, ia_vx, ib);
-      pvy   = (enzo_float *) particle->attribute_array(it, ia_vy, ib);
-      pvz   = (enzo_float *) particle->attribute_array(it, ia_vz, ib);
+      this->assign_attribute_value(particle, particleIcMass[ipt][i], it, ia_m, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcPosition[ipt][0][i], it, ia_x, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcPosition[ipt][1][i], it, ia_y, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcPosition[ipt][2][i], it, ia_z, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcVelocity[ipt][0][i], it, ia_vx, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcVelocity[ipt][1][i], it, ia_vy, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcVelocity[ipt][2][i], it, ia_vz, new_particle);
 
-
-      // set the particle values
-      pmass[ipp] = particleIcMass[ipt][i];
-      px[ipp]    = particleIcPosition[ipt][0][i];
-      py[ipp]    = particleIcPosition[ipt][1][i];
-      pz[ipp]    = particleIcPosition[ipt][2][i];
-      pvx[ipp]   = particleIcVelocity[ipt][0][i];
-      pvy[ipp]   = particleIcVelocity[ipt][1][i];
-      pvz[ipp]   = particleIcVelocity[ipt][2][i];
-
-      // set particle attributes for fields that may not always exist
-      if (ia_metal >= 0){
-        pmetal      = (enzo_float *) particle->attribute_array(it, ia_metal, ib);
-        pmetal[ipp] = this->disk_metal_fraction_;
-      }
-
-      if (ia_l >= 0){
-        plifetime      = (enzo_float *) particle->attribute_array(it, ia_l, ib);
-        plifetime[ipp] = particleIcLifetime[ipt][i]; // flag
-      }
-      if (ia_to >= 0){
-        pform      = (enzo_float *) particle->attribute_array(it, ia_to, ib);
-        pform[ipp] = particleIcCreationTime[ipt][i];
-      }
+      // Other attributes (ia < 0 check done in the routine)      
+      this->assign_attribute_value
+        (particle, this->disk_metal_fraction_, it, ia_metal, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcLifetime[ipt][i], it, ia_l, new_particle);
+      this->assign_attribute_value
+        (particle, particleIcCreationTime[ipt][i], it, ia_to, new_particle);
 
     } // end loop over particles
 
@@ -1161,4 +1133,59 @@ double EnzoInitialIsolatedGalaxy::gauss_mass(
       mass += dx/2.0*weights[i]*x_result[i];
     }
   return mass;
+}
+
+template <class T>
+void EnzoInitialIsolatedGalaxy::assign_attribute_value
+(Particle * particle, T value, int it, int ia, int gindex)
+{
+  if (ia < 0) { // undefined
+    return;
+  }
+
+  int ib = 0;
+  int ipp = 0;
+
+  particle->index(gindex, &ib, &ipp);
+
+  // Get pointer of the attribute array
+  char * attr = particle->attribute_array(it,ia,ib);
+
+  // Get type of attribute array
+  int type = particle->attribute_type(it,ia);
+
+  if (cello::type_is_float(type)) {
+    if (type == type_single) {
+      float * attr_f = (float*) attr;
+      attr_f[ipp] = value;
+    } else if (type == type_double) {
+      double * attr_d = (double*) attr;
+      attr_d[ipp] = value;
+    } else if (type == type_quadruple) {
+      long double * attr_q = (long double*) attr;
+      attr_q[ipp] = value;
+    } else {
+      ERROR1("EnzoInitialIsolatedGalaxy.C // assign_attribute_value():",
+      "Unknown particle attribute float type %d", type);
+    }
+  } else if (cello::type_is_int(type)) {
+    if (type == type_int8) {
+      int8_t * attr_8 = (int8_t *) attr;
+      attr_8[ipp] = value;
+    } else if (type == type_int16) {
+      int16_t * attr_16 = (int16_t *) attr;
+      attr_16[ipp] = value;
+    } else if (type == type_int32) {
+      int32_t * attr_32 = (int32_t *) attr;
+      attr_32[ipp] = value;
+    } else if (type == type_int64) {
+      int64_t * attr_64 = (int64_t *) attr;
+      attr_64[ipp] = value;
+    } else {
+        ERROR1("EnzoInitialIsolatedGalaxy.C // assign_attribute_value():",
+        "Unknown particle attribute int type %d", type);
+    }
+  }
+
+  return;
 }

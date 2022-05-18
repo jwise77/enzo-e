@@ -95,6 +95,11 @@ private:
     return;
   }
 
+protected: // functions
+
+  template <class T>
+  void assign_attribute_value
+  (Particle * particle, T value, int it, int ia, int gindex);
 
 public: // interface
 
